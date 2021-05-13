@@ -1,7 +1,6 @@
 import torch
 from torchvision import datasets, transforms
 import torch.utils.data.sampler as sampler
-import torch.utils.data as data
 
 import numpy as np
 import argparse
@@ -29,7 +28,7 @@ def main(args):
     # manual seed for reproduce purpose
     torch.manual_seed(1331)
     if args.dataset == 'cifar10':
-        test_dataloader = data.DataLoader(
+        test_dataloader = torch.utils.data.DataLoader(
                 datasets.CIFAR10(args.data_path, download=True, transform=cifar_transformer(), train=False),
             batch_size=args.batch_size, drop_last=False)
 
@@ -41,7 +40,7 @@ def main(args):
         args.initial_budget = 1000
         args.num_classes = 10
     elif args.dataset == 'cifar100':
-        test_dataloader = data.DataLoader(
+        test_dataloader = torch.utils.data.DataLoader(
                 datasets.CIFAR100(args.data_path, download=True, transform=cifar_transformer(), train=False),
              batch_size=args.batch_size, drop_last=False)
 
@@ -54,7 +53,7 @@ def main(args):
         args.num_classes = 100
 
     elif args.dataset == 'imagenet':
-        test_dataloader = data.DataLoader(
+        test_dataloader = torch.utils.data.DataLoader(
                 datasets.ImageFolder(args.data_path, transform=imagenet_transformer()),
             drop_last=False, batch_size=args.batch_size)
 
@@ -67,6 +66,47 @@ def main(args):
         args.num_classes = 1000
     else:
         raise NotImplementedError
+
+    if args.save:
+        # dir
+        model_path = os.path.join(".", "Model")
+        if not os.path.exists(model_path):
+            os.mkdir(model_path)
+        training_path = os.path.join(".", "Training_data")
+        testing_path = os.path.join(".", "Testing_data")
+        if not os.path.exists(training_path):
+            os.mkdir(training_path)
+        if not os.path.join(testing_path):
+            os.mkdir(testing_path)
+
+        # save dataset
+        device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
+        dataloader = torch.utils.data.DataLoader(
+            datasets.CIFAR10(args.data_path, download=True, transform=cifar_transformer(), train=True), batch_size=500)
+        training_data = torch.Tensor().to(device)
+        training_labels = torch.Tensor().to(device)
+        for data, target in enumerate(dataloader):
+            training_data = torch.cat(training_data, data)
+            training_labels = torch.cat(training_labels, target)
+        training_data_path = os.path.join(training_path, "training_dataset_data.pth")
+        training_labels_path = os.path.join(training_path, "trainin_dataset_label.pth")
+        torch.save(training_data, training_data_path)
+        torch.save(training_labels, training_labels_path)
+
+        dataloader = torch.utils.data.DataLoader(
+            datasets.CIFAR10(args.data_path, download=True, transform=cifar_transformer(), train=False), batch_size=500)
+        testing_data = torch.Tensor().to(device)
+        testing_labels = torch.Tensor().to(device)
+        for data, target in enumerate(dataloader):
+            testing_data = torch.cat(testing_data, data)
+            testing_labels = torch.cat(testing_labels, target)
+        testing_data_path = os.path.join(testing_path, "testing_dataset_data.pth")
+        testing_labels_path = os.path.join(testing_path, "testing_dataset_label.pth")
+        torch.save(testing_data, testing_data_path)
+        torch.save(testing_labels, testing_labels_path)
+
+
+
 
     all_indices = set(np.arange(args.num_images))
     val_indices = random.sample(all_indices, args.num_val)

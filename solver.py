@@ -139,8 +139,6 @@ class Solver:
                         unlabeled_imgs = unlabeled_imgs.cuda()
                         labels = labels.cuda()
 
-                
-
             if iter_count % 100 == 0:
                 print('Current training iteration: {}'.format(iter_count))
                 print('Current task model loss: {:.4f}'.format(task_loss.item()))
