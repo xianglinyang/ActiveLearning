@@ -3,7 +3,7 @@ import os
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cuda', action='store_true', help='If training is to be done on a GPU')
+    parser.add_argument('--cuda', default=True, action='store_true', help='If training is to be done on a GPU')
     parser.add_argument('--dataset', type=str, default='cifar10', help='Name of the dataset used.')
     parser.add_argument('--batch_size', type=int, default=128, help='Batch size used for training and testing')
     parser.add_argument('--train_epochs', type=int, default=100, help='Number of training epochs')
