@@ -1,6 +1,6 @@
 import torch
 from torchvision import datasets, transforms
-import torch.utils.data.sampler  as sampler
+import torch.utils.data.sampler as sampler
 import torch.utils.data as data
 
 import numpy as np
@@ -11,6 +11,7 @@ import os
 from custom_datasets import *
 import model
 import vgg
+import resnet
 from solver import Solver
 from utils import *
 import arguments
@@ -19,11 +20,14 @@ import arguments
 def cifar_transformer():
     return transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5,],
-                                std=[0.5, 0.5, 0.5]),
+            # transforms.Normalize(mean=[0.5, 0.5, 0.5,],
+            #                     std=[0.5, 0.5, 0.5]),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
         ])
 
 def main(args):
+    # manual seed for reproduce purpose
+    torch.manual_seed(1331)
     if args.dataset == 'cifar10':
         test_dataloader = data.DataLoader(
                 datasets.CIFAR10(args.data_path, download=True, transform=cifar_transformer(), train=False),
@@ -33,8 +37,8 @@ def main(args):
 
         args.num_images = 50000
         args.num_val = 5000
-        args.budget = 2500
-        args.initial_budget = 5000
+        args.budget = 10000
+        args.initial_budget = 1000
         args.num_classes = 10
     elif args.dataset == 'cifar100':
         test_dataloader = data.DataLoader(
@@ -87,10 +91,11 @@ def main(args):
 
     accuracies = []
     
-    for split in splits:
+    for split in range(1000, 11000, 1000):
         # need to retrain all the models on the new images
         # re initialize and retrain the models
-        task_model = vgg.vgg16_bn(num_classes=args.num_classes)
+        # task_model = vgg.vgg16_bn(num_classes=args.num_classes)
+        task_model = resnet.ResNet18()
         vae = model.VAE(args.latent_dim)
         discriminator = model.Discriminator(args.latent_dim)
 
@@ -108,14 +113,14 @@ def main(args):
                                                unlabeled_dataloader)
 
 
-        print('Final accuracy with {}% of data is: {:.2f}'.format(int(split*100), acc))
+        print('Final accuracy with {}% of data is: {:.2f}'.format(int(split // 500), acc))
         accuracies.append(acc)
 
         sampled_indices = solver.sample_for_labeling(vae, discriminator, unlabeled_dataloader)
         current_indices = list(current_indices) + list(sampled_indices)
         sampler = data.sampler.SubsetRandomSampler(current_indices)
-        querry_dataloader = data.DataLoader(train_dataset, sampler=sampler, 
-                batch_size=args.batch_size, drop_last=True)
+        querry_dataloader = data.DataLoader(train_dataset, sampler=sampler,
+                                            batch_size=args.batch_size, drop_last=True)
 
     torch.save(accuracies, os.path.join(args.out_path, args.log_name))
 

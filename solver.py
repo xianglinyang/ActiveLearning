@@ -141,7 +141,7 @@ class Solver:
 
                 
 
-            if iter_count % 5 == 0:
+            if iter_count % 100 == 0:
                 print('Current training iteration: {}'.format(iter_count))
                 print('Current task model loss: {:.4f}'.format(task_loss.item()))
                 print('Current vae model loss: {:.4f}'.format(total_vae_loss.item()))
