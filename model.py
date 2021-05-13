@@ -105,12 +105,14 @@ class Discriminator(nn.Module):
                 kaiming_init(m)
 
     def forward(self, z):
-        return self.net(z)
+        out = self.net(z)
+        return out
 
 
 def kaiming_init(m):
     if isinstance(m, (nn.Linear, nn.Conv2d)):
-        init.kaiming_normal(m.weight)
+        # init.kaiming_normal(m.weight)
+        nn.init.kaiming_normal_(m.weight)
         if m.bias is not None:
             m.bias.data.fill_(0)
     elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
