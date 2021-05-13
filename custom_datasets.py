@@ -6,7 +6,7 @@ import numpy
 from utils import *
 
 def imagenet_transformer():
-    transform=transforms.Compose([
+    transform = transforms.Compose([
         transforms.RandomResizedCrop(224),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
@@ -15,11 +15,12 @@ def imagenet_transformer():
     ])
 
 def cifar10_transformer():
-    return torchvision.transforms.Compose([
-           torchvision.transforms.RandomHorizontalFlip(),
-           torchvision.transforms.ToTensor(),
-           transforms.Normalize(mean=[0.5, 0.5, 0.5,],
-                                std=[0.5, 0.5, 0.5]),
+    return transforms.Compose([
+           transforms.RandomHorizontalFlip(),
+           transforms.ToTensor(),
+           # transforms.Normalize(mean=[0.5, 0.5, 0.5,],
+           #                      std=[0.5, 0.5, 0.5]),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
        ])
 
 class CIFAR10(Dataset):
