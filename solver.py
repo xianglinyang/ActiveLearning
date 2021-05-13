@@ -10,9 +10,6 @@ import sampler
 import copy
 
 
-
-
-
 class Solver:
     def __init__(self, args, test_dataloader):
         self.args = args
@@ -24,7 +21,6 @@ class Solver:
 
         self.sampler = sampler.AdversarySampler(self.args.budget)
 
-
     def read_data(self, dataloader, labels=True):
         if labels:
             while True:
@@ -34,7 +30,6 @@ class Solver:
             while True:
                 for img, _, _ in dataloader:
                     yield img
-
 
     def train(self, querry_dataloader, val_dataloader, task_model, vae, discriminator, unlabeled_dataloader):
         self.args.train_iterations = (self.args.num_images * self.args.train_epochs) // self.args.batch_size
@@ -84,8 +79,8 @@ class Solver:
                 transductive_loss = self.vae_loss(unlabeled_imgs, 
                         unlab_recon, unlab_mu, unlab_logvar, self.args.beta)
             
-                labeled_preds = discriminator(mu)
-                unlabeled_preds = discriminator(unlab_mu)
+                labeled_preds = discriminator(mu).squeeze()
+                unlabeled_preds = discriminator(unlab_mu).squeeze()
                 
                 lab_real_preds = torch.ones(labeled_imgs.size(0))
                 unlab_real_preds = torch.ones(unlabeled_imgs.size(0))
@@ -117,8 +112,8 @@ class Solver:
                     _, _, mu, _ = vae(labeled_imgs)
                     _, _, unlab_mu, _ = vae(unlabeled_imgs)
                 
-                labeled_preds = discriminator(mu)
-                unlabeled_preds = discriminator(unlab_mu)
+                labeled_preds = discriminator(mu).squeeze()
+                unlabeled_preds = discriminator(unlab_mu).squeeze()
                 
                 lab_real_preds = torch.ones(labeled_imgs.size(0))
                 unlab_fake_preds = torch.zeros(unlabeled_imgs.size(0))
@@ -146,7 +141,7 @@ class Solver:
 
                 
 
-            if iter_count % 100 == 0:
+            if iter_count % 5 == 0:
                 print('Current training iteration: {}'.format(iter_count))
                 print('Current task model loss: {:.4f}'.format(task_loss.item()))
                 print('Current vae model loss: {:.4f}'.format(total_vae_loss.item()))
@@ -207,7 +202,6 @@ class Solver:
             correct += accuracy_score(labels, preds, normalize=False)
             total += imgs.size(0)
         return correct / total * 100
-
 
     def vae_loss(self, x, recon, mu, logvar, beta):
         MSE = self.mse_loss(recon, x)
