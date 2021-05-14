@@ -1,3 +1,5 @@
+import time
+
 import torch
 from torchvision import datasets, transforms
 import torch.utils.data.sampler as sampler
@@ -154,7 +156,11 @@ def main(args):
         print('Final accuracy with {}% of data is: {:.2f}'.format(int(1000*(split+1)//500), acc))
         accuracies.append(acc)
 
+        t0 = time.time()
         sampled_indices = solver.sample_for_labeling(vae, discriminator, unlabeled_dataloader)
+        t1 = time.time()
+        print("Query time: {}".format(t1-t0))
+
         current_indices = list(current_indices) + list(sampled_indices)
         sampler = torch.utils.data.sampler.SubsetRandomSampler(current_indices)
         querry_dataloader = torch.utils.data.DataLoader(train_dataset, sampler=sampler,

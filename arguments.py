@@ -6,7 +6,7 @@ def get_args():
     parser.add_argument('--cuda', default=True, action='store_true', help='If training is to be done on a GPU')
     parser.add_argument('--dataset', type=str, default='cifar10', help='Name of the dataset used.')
     parser.add_argument('--batch_size', type=int, default=128, help='Batch size used for training and testing')
-    parser.add_argument('--train_epochs', type=int, default=100, help='Number of training epochs')
+    parser.add_argument('--train_epochs', type=int, default=5, help='Number of training epochs')    # 100->5
     parser.add_argument('--latent_dim', type=int, default=32, help='The dimensionality of the VAE latent dimension')
     parser.add_argument('--data_path', type=str, default='./data', help='Path to where the data is')
     parser.add_argument('--beta', type=float, default=1, help='Hyperparameter for training. The parameter for VAE')
