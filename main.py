@@ -15,6 +15,7 @@ if __name__ == "__main__":
     NUM_ROUND = 10
     DATA_NAME = 'CIFAR10'
     SAVE = True
+    TOTAL_EPOCH = 200
 
     # for reproduce purpose
     torch.manual_seed(1331)
@@ -56,21 +57,23 @@ if __name__ == "__main__":
     task_model_type = "pytorch"
 
     # here the training handlers and testing handlers are different
-    train_dataset = torchvision.datasets.CIFAR10(root="data//CIFAR10", download=True, train=True)
-    test_dataset = torchvision.datasets.CIFAR10(root="data//CIFAR10", download=True, train=False)
+    train_dataset = torchvision.datasets.CIFAR10(root="data//CIFAR10", download=True, train=True, transform=args['transform_tr'])
+    test_dataset = torchvision.datasets.CIFAR10(root="data//CIFAR10", download=True, train=False, transform=args['transform_te'])
 
-    strategy = CoreSetSampling(task_model, task_model_type, n_pool, embedding_shape=512, gpu=True, **args)
+    strategy = CoreSetSampling(task_model, task_model_type, n_pool, 512, idxs_lb, DATA_NAME, "resnet18", gpu=True, **args)
 
     # print information
     print(DATA_NAME)
     print(type(strategy).__name__)
 
     # round 0 accuracy
-    strategy.train(total_epoch=200)
+    strategy.train(total_epoch=TOTAL_EPOCH, complete_dataset=train_dataset)
     accu = strategy.test_accu(test_dataset)
     acc = np.zeros(NUM_ROUND+1)
     acc[0] = accu
-    print('Round 0\ntesting accuracy {:.3f}'.format(acc[0]))
+    print('Round 0\ntesting accuracy {:.3f}'.format(100*acc[0]))
+    if SAVE:
+        save_task_model(0, strategy)
 
     q_time = np.zeros(NUM_ROUND)
     t_time = np.zeros(NUM_ROUND)
@@ -90,7 +93,7 @@ if __name__ == "__main__":
 
         # update
         strategy.update_lb_idxs(new_indices)
-        strategy.train(total_epoch=200, complete_dataset=train_dataset)
+        strategy.train(total_epoch=TOTAL_EPOCH, complete_dataset=train_dataset)
         t2 = time.time()
         print("Training time is {:.2f}".format(t2-t1))
         t_time[rd-1] = t2-t1
@@ -98,7 +101,7 @@ if __name__ == "__main__":
         # compute accuracy at each round
         accu = strategy.test_accu(test_dataset)
         acc[rd] = accu
-        print('Accuracy {:.3f}'.format(acc[rd]))
+        print('Accuracy {:.3f}'.format(100*acc[rd]))
 
         if SAVE:
             save_task_model(rd, strategy)

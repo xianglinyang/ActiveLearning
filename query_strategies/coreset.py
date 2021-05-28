@@ -7,8 +7,8 @@ from torch.utils.data import DataLoader, Subset
 import tqdm
 from keras.models import Model
 
-from query_strategy import QueryMethod as QueryMethod
-from query_strategy import get_unlabeled_idx as get_unlabeled_idx
+from query_strategies.query_strategy import QueryMethod as QueryMethod
+from query_strategies.query_strategy import get_unlabeled_idx as get_unlabeled_idx
 
 
 class CoreSetSampling(QueryMethod):
@@ -19,12 +19,12 @@ class CoreSetSampling(QueryMethod):
     def __init__(self, model, model_type, n_pool, embedding_shape, init_lb, dataset_name, model_name, gpu=True, **kwargs):
 
         super(CoreSetSampling, self).__init__(model, model_type, n_pool)
-        self.strategy = "coreset"
+        self.strategy_name = "coreset"
         self.dataset_name = dataset_name
         self.model_name = model_name
         self.embeding_shape = embedding_shape
         self.lb_idxs = init_lb
-        self.device = torch.device("cuda:" if gpu else "cpu")
+        self.device = torch.device("cuda:0" if gpu else "cpu")
         self.kwargs = kwargs
 
     def greedy_k_center(self, labeled, unlabeled, amount):
@@ -70,15 +70,15 @@ class CoreSetSampling(QueryMethod):
         loader = DataLoader(trainset, shuffle=False, **self.kwargs['loader_te_args'])
         embedding_model.eval()
 
-        train_num = trainset.targets.shape[0]
+        train_num = len(trainset.targets)
         batch_size = self.kwargs['loader_te_args']['batch_size']
-        embedding = np.zeros(train_num, dtype=np.long)
+        embedding = np.zeros((train_num, self.embeding_shape))
         with torch.no_grad():
             for idx, (x, y) in enumerate(loader):
                 x, y = x.to(self.device), y.to(self.device)
                 out = embedding_model(x)
                 p = out.view(out.shape[0], -1)
-                embedding[idx*batch_size: (idx+1)*batch_size] = p.cpu().numpy()
+                embedding[idx*batch_size:(idx+1)*batch_size] = p.cpu().numpy()
         return embedding
 
     def query(self, embedding, amount):
@@ -101,10 +101,11 @@ class CoreSetSampling(QueryMethod):
         """
         print("[Training] labeled and unlabeled data")
 
+        self.task_model.to(self.device)
         # setting idx_lb
         idx_lb_train = self.lb_idxs
         train_dataset = Subset(complete_dataset, idx_lb_train)
-        train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=1)
+        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=1)
         optimizer = optim.SGD(
             self.task_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4
         )
@@ -113,7 +114,7 @@ class CoreSetSampling(QueryMethod):
         for epoch in range(total_epoch):
             if epoch == total_epoch * 4 // 5:
                 optimizer = optim.SGD(
-                    self.task_model.parameters(), **self.kwargs['transform_tr_args']
+                    self.task_model.parameters(), **self.kwargs['optimizer_args']
                 )
 
             self.task_model.train()
@@ -122,8 +123,7 @@ class CoreSetSampling(QueryMethod):
             n_batch = 0
             acc = 0
 
-            progress = tqdm.tqdm(enumerate(train_loader), total=len(train_loader))
-            for batch_idx, (inputs, targets) in progress:
+            for inputs, targets in train_loader:
                 n_batch += 1
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
 
@@ -135,33 +135,32 @@ class CoreSetSampling(QueryMethod):
                 optimizer.step()
 
                 total_loss += loss.item()
-                predicted = outputs.max(1)
+                predicted = outputs.argmax(1)
                 b_acc = 1.0 * (targets == predicted).sum().item() / targets.shape[0]
                 acc += b_acc
-
-                progress.set_description('Loss: %.3f | Acc: %.3f' % (
-                    total_loss / (batch_idx + 1), 100 * b_acc))
 
             total_loss /= n_batch
             acc /= n_batch
 
-            print('==========Inner epoch {:d} ========'.format(epoch))
-            print('Training Loss {:.3f}'.format(total_loss))
-            print('Training accuracy {:.3f}'.format(acc*100))
+            if epoch % 50 == 0 or epoch == total_epoch-1:
+                print('==========Inner epoch {:d} ========'.format(epoch))
+                print('Training Loss {:.3f}'.format(total_loss))
+                print('Training accuracy {:.3f}'.format(acc*100))
 
     def predict(self, testset):
 
         loader_te = DataLoader(testset, shuffle=False, **self.kwargs['loader_te_args'])
+        self.task_model.to(self.device)
         self.task_model.eval()
 
-        test_num = testset.targets.shape[0]
+        test_num = len(testset.targets)
         batch_size = self.kwargs['loader_te_args']['batch_size']
         pred = np.zeros(test_num, dtype=np.long)
         with torch.no_grad():
             for idx, (x, y) in enumerate(loader_te):
                 x, y = x.to(self.device), y.to(self.device)
                 out = self.task_model(x)
-                p = out.max(1)
+                p = out.argmax(1)
                 pred[idx*batch_size:(idx+1)*batch_size] = p.cpu().numpy()
         return pred
 

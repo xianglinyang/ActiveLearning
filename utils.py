@@ -77,8 +77,10 @@ def save_datasets(strategy_n, model_n, dataset_n, **kwargs):
 
 def save_task_model(n_epoch, strategy):
     # save subject model and index
-    working_path = os.path.join("result", strategy.strategy_name, strategy.model_name, strategy.dataset_name, "Model",
-                                "Epoch_{}".format(n_epoch))
+    working_path = os.path.join("results", strategy.strategy_name, strategy.model_name, strategy.dataset_name, "Model")
+    if not os.path.exists(working_path):
+        os.mkdir(working_path)
+    working_path = os.path.join(working_path, "Epoch_{}".format(n_epoch))
     if not os.path.exists(working_path):
         os.mkdir(working_path)
     task_model_path = os.path.join(working_path, "subject_model.pth")
