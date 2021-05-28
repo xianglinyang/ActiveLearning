@@ -1,6 +1,7 @@
 import os
 import torch
 import torchvision
+import json
 
 
 def save_datasets(strategy_n, model_n, dataset_n, **kwargs):
@@ -72,3 +73,17 @@ def save_datasets(strategy_n, model_n, dataset_n, **kwargs):
     testing_labels_path = os.path.join(testing_path, "testing_dataset_label.pth")
     torch.save(testing_data, testing_data_path)
     torch.save(testing_labels, testing_labels_path)
+
+
+def save_task_model(n_epoch, strategy):
+    # save subject model and index
+    working_path = os.path.join("result", strategy.strategy_name, strategy.model_name, strategy.dataset_name, "Model",
+                                "Epoch_{}".format(n_epoch))
+    if not os.path.exists(working_path):
+        os.mkdir(working_path)
+    task_model_path = os.path.join(working_path, "subject_model.pth")
+    torch.save(strategy.task_model.state_dict(), task_model_path)
+
+    current_indices = strategy.lb_idxs.tolist()
+    with open(os.path.join(working_path, "index.json"), "w") as f:
+        json.dump(current_indices, f)
