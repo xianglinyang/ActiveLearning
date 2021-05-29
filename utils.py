@@ -40,9 +40,11 @@ def save_datasets(strategy_n, model_n, dataset_n, **kwargs):
     # device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
     device = torch.device("cpu")
     if dataset_n == "CIFAR10":
-        train_dataset = torchvision.datasets.CIFAR10(root='data', download=True, transform=kwargs['transform_te'], train=True)
+        train_dataset = torchvision.datasets.CIFAR10(root='data/CIFAR10', download=True,
+                                                     transform=kwargs['transform_te'], train=True)
         train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=500)
-        test_dataset = torchvision.datasets.CIFAR10(root='data', download=True, transform=kwargs['transform_te'], train=False)
+        test_dataset = torchvision.datasets.CIFAR10(root='data/CIFAR10', download=True,
+                                                    transform=kwargs['transform_te'], train=False)
         test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=500)
     elif dataset_n == "SVHN":
         # TODO
