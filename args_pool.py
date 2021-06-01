@@ -12,5 +12,8 @@ args_pool = {
             'loader_tr_args': {'batch_size': 64, 'num_workers': 1},
             'loader_te_args': {'batch_size': 1000, 'num_workers': 1},
             'optimizer_args': {'lr': 0.01, 'momentum': 0.3, 'weight_decay': 5e-4},
-            'num_class': 10},
+            'num_class': 10,
+            'train_num': 50000,
+            'test_num': 10000,
+        },
 }

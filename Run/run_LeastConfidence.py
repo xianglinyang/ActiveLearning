@@ -7,33 +7,21 @@ import time
 from utils import save_datasets, save_task_model
 from models.resnet import ResNet18
 from query_strategies.LeastConfidence import LeastConfidenceSampling
+from args_pool import args_pool
+from arguments import get_arguments
 
 if __name__ == "__main__":
+    hyperparameters = get_arguments()
 
-    NUM_INIT_LB = 1000
-    NUM_QUERY = 1000
-    NUM_ROUND = 10
-    DATA_NAME = 'CIFAR10'
-    SAVE = True
-    TOTAL_EPOCH = 1
+    NUM_INIT_LB = hyperparameters["init_num"]   # 1000
+    NUM_QUERY = hyperparameters["query_num"]    # 1000
+    NUM_ROUND = hyperparameters["cycle_num"]    # 10
+    DATA_NAME = hyperparameters["dataset"]  # "CIFAR10
+    SAVE = hyperparameters["save"]  # True
+    TOTAL_EPOCH = hyperparameters["epoch_num"]  # 200
 
     # for reproduce purpose
     torch.manual_seed(1331)
-
-    args_pool = {
-        'CIFAR10':
-            {'transform_tr': transforms.Compose([
-                transforms.RandomCrop(size=32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))]),
-                'transform_te': transforms.Compose([transforms.ToTensor(),
-                                                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))]),
-                'loader_tr_args': {'batch_size': 64, 'num_workers': 1},
-                'loader_te_args': {'batch_size': 1000, 'num_workers': 1},
-                'optimizer_args': {'lr': 0.01, 'momentum': 0.3, 'weight_decay': 5e-4},
-                'num_class': 10},
-    }
 
     args = args_pool[DATA_NAME]
 
@@ -41,8 +29,8 @@ if __name__ == "__main__":
         save_datasets("LeastConfidence", "resnet18", "CIFAR10", **args)
 
     # start experiment
-    n_pool = 50000
-    n_test = 10000
+    n_pool = args['train_num']  # 50000
+    n_test = args['test_num']   # 10000
     print('number of labeled pool: {}'.format(NUM_INIT_LB))
     print('number of unlabeled pool: {}'.format(n_pool - NUM_INIT_LB))
     print('number of testing pool: {}'.format(n_test))
