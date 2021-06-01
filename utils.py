@@ -6,7 +6,7 @@ import json
 
 def save_datasets(strategy_n, model_n, dataset_n, **kwargs):
     # output log
-    output_path = os.path.join("results")
+    output_path = os.path.join("..", "results")
     if not os.path.exists(output_path):
         os.mkdir(output_path)
 
@@ -40,10 +40,10 @@ def save_datasets(strategy_n, model_n, dataset_n, **kwargs):
     # device = torch.device("cuda:0" if args.cuda and torch.cuda.is_available() else "cpu")
     device = torch.device("cpu")
     if dataset_n == "CIFAR10":
-        train_dataset = torchvision.datasets.CIFAR10(root='data/CIFAR10', download=True,
+        train_dataset = torchvision.datasets.CIFAR10(root='../data/CIFAR10', download=True,
                                                      transform=kwargs['transform_te'], train=True)
         train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=500)
-        test_dataset = torchvision.datasets.CIFAR10(root='data/CIFAR10', download=True,
+        test_dataset = torchvision.datasets.CIFAR10(root='../data/CIFAR10', download=True,
                                                     transform=kwargs['transform_te'], train=False)
         test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=500)
     elif dataset_n == "SVHN":
@@ -79,7 +79,7 @@ def save_datasets(strategy_n, model_n, dataset_n, **kwargs):
 
 def save_task_model(n_epoch, strategy):
     # save subject model and index
-    working_path = os.path.join("results", strategy.strategy_name, strategy.model_name, strategy.dataset_name, "Model")
+    working_path = os.path.join("..", "results", strategy.strategy_name, strategy.model_name, strategy.dataset_name, "Model")
     if not os.path.exists(working_path):
         os.mkdir(working_path)
     working_path = os.path.join(working_path, "Epoch_{}".format(n_epoch))
