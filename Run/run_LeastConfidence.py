@@ -22,7 +22,7 @@ if __name__ == "__main__":
     SAVE = hyperparameters.save  # True
     TOTAL_EPOCH = hyperparameters.epoch_num  # 200
     METHOD = hyperparameters.method
-    CKPT = hyperparameters.checkpoint
+    RESUME = hyperparameters.resume
 
     # for reproduce purpose
     torch.manual_seed(1331)
@@ -47,10 +47,10 @@ if __name__ == "__main__":
     # loading neural network
     task_model = ResNet18()
     task_model_type = "pytorch"
-    if CKPT:
-        ckpt_path = hyperparameters.ckpy_path
-        idxs_lb = json.load(os.path.join(ckpt_path, "index.json"))
-        state_dict = torch.load(os.path.join(ckpt_path, "subject_model.pth"))
+    if RESUME:
+        resume_path = hyperparameters.resume_path
+        idxs_lb = json.load(os.path.join(resume_path, "index.json"))
+        state_dict = torch.load(os.path.join(resume_path, "subject_model.pth"))
         task_model.load_state_dict(state_dict)
 
     # here the training handlers and testing handlers are different
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     print(DATA_NAME)
     print(type(strategy).__name__)
 
-    if not CKPT:
+    if not RESUME:
         # round 0
         strategy.train(total_epoch=TOTAL_EPOCH, complete_dataset=train_dataset)
     accu = strategy.test_accu(test_dataset)

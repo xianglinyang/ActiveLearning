@@ -13,8 +13,8 @@ def get_arguments():
                         choices=["CIFAR10", "MNIST", "CIFAR100", "FashionMNIST", "SVHN"])
     parser.add_argument('--save', '-s', type=bool, default=True, help='save datasets and task models')
     parser.add_argument('--task_model_type', type=str, default="pytorch", choices=["tensorflow", "pytorch"])
-    parser.add_argument("--checkpoint", type=bool, default=False, help="load from checkpoints")
-    parser.add_argument("--ckpt_path", type=str, help="path to where ckpt is saved")
+    parser.add_argument("--resume", '-r', type=bool, default=False, help="resume from checkpoints")
+    parser.add_argument("--resume_path", type=str, help="path to where ckpt is saved")
     args = parser.parse_args()
 
     return args
