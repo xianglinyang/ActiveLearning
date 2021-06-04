@@ -18,7 +18,7 @@ class RandomSampling(QueryMethod):
     def __init__(self, model, model_type, n_pool, init_lb, num_classes, dataset_name, model_name, gpu=True, **kwargs):
 
         super(RandomSampling, self).__init__(model, model_type, n_pool)
-        self.strategy_name = "LeastConfidence"
+        self.strategy_name = "random"
         self.dataset_name = dataset_name
         self.model_name = model_name
         self.num_classes = num_classes
