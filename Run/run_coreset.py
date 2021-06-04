@@ -3,6 +3,8 @@ import torch
 import torchvision
 from torchvision import transforms
 import time
+import os
+import json
 
 from utils import save_datasets, save_task_model
 from models.resnet import ResNet18
@@ -13,12 +15,14 @@ from args_pool import args_pool
 if __name__ == "__main__":
     hyperparameters = get_arguments()
 
-    NUM_INIT_LB = hyperparameters['init_num']    # 1000
-    NUM_QUERY = hyperparameters['query_num']    # 1000
-    NUM_ROUND = hyperparameters['cycle_num']    # 10
-    DATA_NAME = hyperparameters['dataset']   # 'CIFAR10'
-    SAVE = hyperparameters['save']  # True
-    TOTAL_EPOCH = hyperparameters['epoch_num']  # 200
+    NUM_INIT_LB = hyperparameters.init_num    # 1000
+    NUM_QUERY = hyperparameters.query_num    # 1000
+    NUM_ROUND = hyperparameters.cycle_num    # 10
+    DATA_NAME = hyperparameters.dataset   # 'CIFAR10'
+    SAVE = hyperparameters.save  # True
+    TOTAL_EPOCH = hyperparameters.epoch_num  # 200
+    METHOD = hyperparameters.method
+    CKPT = hyperparameters.checkpoint
 
     # for reproduce purpose
     torch.manual_seed(1331)
@@ -26,7 +30,7 @@ if __name__ == "__main__":
     args = args_pool[DATA_NAME]
 
     if SAVE:
-        save_datasets("..", "coreset", "resnet18", "CIFAR10", **args)
+        save_datasets(METHOD, "resnet18", DATA_NAME, **args)
 
     # start experiment
     n_pool = args['train_num']  # 50000
@@ -43,6 +47,11 @@ if __name__ == "__main__":
     # loading neural network
     task_model = ResNet18()
     task_model_type = "pytorch"
+    if CKPT:
+        ckpt_path = hyperparameters.ckpy_path
+        idxs_lb = json.load(os.path.join(ckpt_path, "index.json"))
+        state_dict = torch.load(os.path.join(ckpt_path, "subject_model.pth"))
+        task_model.load_state_dict(state_dict)
 
     # here the training handlers and testing handlers are different
     train_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=True, transform=args['transform_tr'])
@@ -54,8 +63,9 @@ if __name__ == "__main__":
     print(DATA_NAME)
     print(type(strategy).__name__)
 
-    # round 0 accuracy
-    strategy.train(total_epoch=TOTAL_EPOCH, complete_dataset=train_dataset)
+    if not CKPT:
+        # round 0
+        strategy.train(total_epoch=TOTAL_EPOCH, complete_dataset=train_dataset)
     accu = strategy.test_accu(test_dataset)
     acc = np.zeros(NUM_ROUND+1)
     acc[0] = accu
