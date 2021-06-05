@@ -1,340 +1,287 @@
-'''Train CIFAR10 with PyTorch.'''
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import torch.backends.cudnn as cudnn
-from torch.utils.data import DataLoader, Subset
+'''Active Learning Procedure in PyTorch.
+Reference:
+- [Yoo et al. 2019] Learning Loss for Active Learning(https://arxiv.org/abs/1905.03677)
+- https://github.com/Mephisto405/Learning-Loss-for-Active-Learning/blob/3c11ff7cf96d8bb4596209fe56265630fda19da6/main.py
+'''
 
-from torchvision import datasets
-import torchvision.transforms as transforms
-
-import pickle
+# Python
 import os
-import argparse
-import numpy as np
-import matplotlib.pyplot as plt
-
-import tqdm
-from models import *
-import sys
-
-sys.path.append(os.path.abspath('../../active_learning'))
-
-from active_learning import ActiveLearning
-from active_loss import LossPredictionLoss
-from active_learning_utils import *
-from discriminative_learning import *
+import random
 import json
 
+# Torch
+import torch
+import numpy as np
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+import torch.optim.lr_scheduler as lr_scheduler
+from torch.utils.data.sampler import SubsetRandomSampler
 
-parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
-parser.add_argument(
-    '--resume', '-r', action='store_true', help='resume from checkpoint'
-)
+# Torchvison
+import torchvision
 
-args = parser.parse_args()
+# Utils
+from tqdm import tqdm
 
-# For reproducability.
-rand_state = np.random.RandomState(1311)
-torch.manual_seed(1311)
+# Custom
+from models.LL4ALnet import ResNet18
+from models.LL4ALnet import LossNet
+from utils import save_datasets, save_task_model
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-best_acc = 0  # best test accuracy
-start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-weight_decay = 5e-4
-unlabeled_idx = list(range(50000))
+from query_strategies.LL4AL import LL4ALSampling
+from args_pool import args_pool
+from arguments import get_arguments
 
-# Data
-print('==> Preparing data..')
-transform_train = transforms.Compose(
-    [
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(
-            (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
-        ),
-    ]
-)
+if __name__ == "__main__":
+    hyperparameters = get_arguments()
 
-transform_test = transforms.Compose(
-    [
-        transforms.ToTensor(),
-        transforms.Normalize(
-            (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
-        ),
-    ]
-)
+    NUM_INIT_LB = hyperparameters.init_num   # 1000
+    NUM_QUERY = hyperparameters.query_num    # 1000
+    NUM_ROUND = hyperparameters.cycle_num    # 10
+    DATA_NAME = hyperparameters.dataset  # CIFAR10
+    SAVE = hyperparameters.save  # True
+    TOTAL_EPOCH = hyperparameters.epoch_num  # 200
+    METHOD = hyperparameters.method
+    RESUME = hyperparameters.resume
 
-complete_train_dataset = datasets.CIFAR10(
-    root='datasets/cifar10',
-    train=True,
-    download=True,
-    transform=transform_train)
+    # for reproduce purpose
+    torch.manual_seed(1331)
 
-complete_train_dataset_no_augmentation = datasets.CIFAR10(
-    root='datasets/cifar10',
-    train=True,
-    download=True,
-    transform=transform_test)
+    args = args_pool[DATA_NAME]
 
-testset = datasets.CIFAR10(
-    root='datasets/cifar10',
-    train=False,
-    download=True,
-    transform=transform_test
-)
-testloader = DataLoader(testset, batch_size=100, shuffle=False, num_workers=0)
+    if SAVE:
+        save_datasets(METHOD, "resnet18", DATA_NAME, **args)
 
-classes = (
-    'plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship',
-    'truck'
-)
+    # start experiment
+    n_pool = args['train_num']  # 50000
+    n_test = args['test_num']   # 10000
 
-criterion = nn.CrossEntropyLoss(reduction='none')
+    # loading neural network
+    task_model = ResNet18()
+    task_model_type = "pytorch"
+    if RESUME:
+        print('==> Resuming from checkpoint...')
+        resume_path = hyperparameters.resume_path
+        idxs_lb = json.load(os.path.join(resume_path, "index.json"))
+        state_dict = torch.load(os.path.join(resume_path, "subject_model.pth"))
+        task_model.load_state_dict(state_dict)
+        NUM_INIT_LB = len(idxs_lb)
+    else:
+        # Generate the initial labeled pool
+        idxs_tot = np.arange(n_pool)
+        idxs_lb = np.random.choice(n_pool, NUM_INIT_LB, replace=False)
+        # np.random.permutation(idxs_tot)[:NUM_INIT_LB]#
+    print('number of labeled pool: {}'.format(NUM_INIT_LB))
+    print('number of unlabeled pool: {}'.format(n_pool - NUM_INIT_LB))
+    print('number of testing pool: {}'.format(n_test))
 
+    # here the training handlers and testing handlers are different
+    train_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=True, transform=args['transform_tr'])
+    test_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=False, transform=args['transform_te'])
+    complete_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=True, transform=args['transform_te'])
 
-# Training
-def train(epoch, net, train_loader, optimizer,
-          use_loss_prediction_al=False, lamda=1, use_discriminative_al=False):
-    print('\nEpoch: %d' % epoch)
-    net.train()
-    train_loss = 0
-    correct = 0
-    total = 0
+    iters = 0
 
-    # For tracking progress on loss prediction active learing.
-    correctly_ranked = 0
-    total_ranked = 0
+    #
+    def train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss, vis=None, plot_data=None):
+        models['backbone'].train()
+        models['module'].train()
+        global iters
 
-    progress = tqdm.tqdm(enumerate(train_loader), total=len(train_loader))
-    for batch_idx, (inputs, targets) in progress:
-        inputs, targets = inputs.to(device), targets.to(device)
-        optimizer.zero_grad()
-        if use_loss_prediction_al:
-            # Loss prediction module is trained with the main network.
-            if epoch < 120:
-                outputs, loss_pred = net(inputs)
-            else:
-                outputs, loss_pred = net(inputs, detach_lp=True)
-            loss_pred = loss_pred.view(loss_pred.size(0))
-        #elif use_discriminative_al:
-        #    # We are not training the active learning part here, will be
-        #    # trained separataly layer.
-        #    outputs, labeled_unlabeled_predictions = net(inputs)
-        else:
-            outputs = net(inputs)
-        loss = criterion(outputs, targets)
-        if use_loss_prediction_al:
-            criterion_lp = LossPredictionLoss()
-            lp = lamda * criterion_lp(loss_pred, loss)
-            # Also compute (an estimate) of the ranking accuracy for the training set.
-            batch_size = loss.shape[0]
-            for l1 in range(batch_size):
-                for l2 in range(l1):
-                    total_ranked += 1
-                    if (loss[l1] - loss[l2]) * (loss_pred[l1] - loss_pred[l2]) > 0:
-                        correctly_ranked += 1
-        else:
-            lp = 0
-        loss = torch.sum(loss) / loss.size(0)
-        loss_total = loss + lp
-        loss_total.backward()
-        optimizer.step()
-        train_loss += loss_total.item()
-        _, predicted = outputs.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
+        for data in tqdm(dataloaders['train'], leave=False, total=len(dataloaders['train'])):
+            inputs = data[0].cuda()
+            labels = data[1].cuda()
+            iters += 1
 
-        if use_loss_prediction_al:
-            progress.set_description('Loss: %.3f | Acc: %.3f%% (%d/%d) Prediction Acc %.3f%%' % (
-                train_loss / (batch_idx + 1),
-                100. * correct / total, correct, total,
-                correctly_ranked / (total_ranked + 0.0001)))
-        else:
-            progress.set_description('Loss: %.3f | Acc: %.3f%% (%d/%d)' % (
-                train_loss / (batch_idx + 1), 100. * correct / total, correct, total))
+            optimizers['backbone'].zero_grad()
+            optimizers['module'].zero_grad()
 
+            scores, features = models['backbone'](inputs)
+            target_loss = criterion(scores, labels)
 
-def test(net, epoch):
-    global best_acc
-    net.eval()
-    test_loss = 0
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        progress = tqdm.tqdm(enumerate(testloader), total=len(testloader))
-        for batch_idx, (inputs, targets) in progress:
-            inputs, targets = inputs.to(device), targets.to(device)
-            outputs = net(inputs)
-            outputs = outputs[0] if len(outputs) == 2 else outputs
-            loss = criterion(outputs, targets).mean()
-            test_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += targets.size(0)
-            correct += predicted.eq(targets).sum().item()
+            if epoch > epoch_loss:
+                # After 120 epochs, stop the gradient from the loss prediction module propagated to the target model.
+                features[0] = features[0].detach()
+                features[1] = features[1].detach()
+                features[2] = features[2].detach()
+                features[3] = features[3].detach()
+            pred_loss = models['module'](features)
+            pred_loss = pred_loss.view(pred_loss.size(0))
 
-            progress.set_description('Loss: %.3f | Test Acc: %.3f%% (%d/%d)' % (
-                test_loss / (batch_idx + 1), 100. * correct / total, correct, total))
+            m_backbone_loss = torch.sum(target_loss) / target_loss.size(0)
+            m_module_loss   = LossPredLoss(pred_loss, target_loss, margin=MARGIN)
+            loss            = m_backbone_loss + WEIGHT * m_module_loss
 
-    # Save checkpoint.
-    acc = 100. * correct / total
-    # if acc > best_acc:
-    #     print('Saving..')
-    #     state = {
-    #         'net': net.state_dict(),
-    #         'acc': acc,
-    #         'epoch': epoch,
-    #     }
-    #     if not os.path.isdir('checkpoint'):
-    #         os.mkdir('checkpoint')
-    #     torch.save(state, './checkpoint/ckpt.pth')
-    #     best_acc = acc
-    return acc
+            loss.backward()
+            optimizers['backbone'].step()
+            optimizers['module'].step()
 
-
-def run_training(
-        use_loss_prediction_al=False, input_pickle_file=None,
-        images_per_cycle=1000, cycles_count=10, use_discriminative_al=False, saving_period=10):
-    global unlabeled_idx
-    global rand_state
-    global epoch_id
-    epoch_id = 1
-
-    save_dir = os.getcwd()
-    save_Model_dir = os.path.join(save_dir, "Model")
-
-    if not os.path.exists(save_Model_dir):
-        os.mkdir(save_Model_dir)
-
-    accuracies = []
-    labeled_idx = []
-    unlabeled_idx = list(range(50000))
-
-    if device == 'cuda':
-        cudnn.benchmark = True
-    labeled_idx_per_cycle = []
-    # net = None
-    net = ResNet18()
-    if args.resume:
-        # Load checkpoint.
-        print('==> Resuming from checkpoint..')
-        assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-        checkpoint = torch.load('./checkpoint/c4/subject_model.pth')
-        net.load_state_dict(checkpoint)
-    if use_loss_prediction_al:
-        net = ActiveLearning(net)
-    elif use_discriminative_al:
-        # Intentionally left this block here. We do not wrap the model in discriminative AL model
-        # Doing so hurts the performance.
-        pass
-        # net = DiscriminativeActiveLearning(net)
-    net = net.to(device)
-
-    for cycle in range(cycles_count):
-        new_indices, entropies = choose_new_labeled_indices(
-            net, complete_train_dataset_no_augmentation,
-            cycle, rand_state, labeled_idx, unlabeled_idx, device, images_per_cycle,
-            use_loss_prediction_al, use_discriminative_al, input_pickle_file)
-
-        labeled_idx.extend(new_indices)
-        unlabeled_idx = [x for x in unlabeled_idx if x not in new_indices]
-        print("Number of labeled images now is {}, unlabeled {}".format(
-            len(labeled_idx), len(unlabeled_idx)))
-
-        # Remember new indices as a list of lists.
-        labeled_idx_per_cycle.append(new_indices)
-
-        net.train()
-        # Reset the network, train from the start.
-        # net = ResNet18()
-        # if use_loss_prediction_al:
-        #     net = ActiveLearning(net)
-        # elif use_discriminative_al:
-        #     # Intentionally left this block here. We do not wrap the model in discriminative AL model
-        #     # Doing so hurts the performance.
-        #     pass
-        #     # net = DiscriminativeActiveLearning(net)
-        # net = net.to(device)
-        train_dataset = Subset(complete_train_dataset, labeled_idx)
-        train_loader = DataLoader(
-            train_dataset, batch_size=128, shuffle=True, num_workers=0
-        )
-        optimizer = optim.SGD(
-            net.parameters(), lr=0.1, momentum=0.9, weight_decay=weight_decay
-        )
-        for epoch in range(200):
-            if epoch == 160:
-                optimizer = optim.SGD(
-                    net.parameters(), lr=0.01, momentum=0.9, weight_decay=weight_decay
+            # Visualize
+            if (iters % 100 == 0) and (vis != None) and (plot_data != None):
+                plot_data['X'].append(iters)
+                plot_data['Y'].append([
+                    m_backbone_loss.item(),
+                    m_module_loss.item(),
+                    loss.item()
+                ])
+                vis.line(
+                    X=np.stack([np.array(plot_data['X'])] * len(plot_data['legend']), 1),
+                    Y=np.array(plot_data['Y']),
+                    opts={
+                        'title': 'Loss over Time',
+                        'legend': plot_data['legend'],
+                        'xlabel': 'Iterations',
+                        'ylabel': 'Loss',
+                        'width': 1200,
+                        'height': 390,
+                    },
+                    win=1
                 )
-            train(epoch, net, train_loader, optimizer,
-                  use_loss_prediction_al=use_loss_prediction_al,
-                  use_discriminative_al=use_discriminative_al)
 
-            if (epoch+1) % saving_period == 0:
-                save_loc = os.path.join(save_Model_dir, "Epoch_{}".format(epoch_id))
-                epoch_id = epoch_id+1
-                if not os.path.exists(save_loc):
-                    os.mkdir(save_loc)
-                torch.save(net.state_dict(), os.path.join(save_loc, "subject_model.pth"))
-                with open(os.path.join(save_loc, "index.json"), 'w') as f:
-                    json.dump(np.array(labeled_idx).tolist(), f)
+    #
+    def test(models, dataloaders, mode='val'):
+        assert mode == 'val' or mode == 'test'
+        models['backbone'].eval()
+        models['module'].eval()
 
-        cycle_acc = test(net, cycle)
-        accuracies.append(cycle_acc)
-        print("===/*/*=== Accuracies so far {}".format(accuracies))
-    return accuracies, labeled_idx_per_cycle
+        total = 0
+        correct = 0
+        with torch.no_grad():
+            for (inputs, labels) in dataloaders[mode]:
+                inputs = inputs.cuda()
+                labels = labels.cuda()
+
+                scores, _ = models['backbone'](inputs)
+                _, preds = torch.max(scores.data, 1)
+                total += labels.size(0)
+                correct += (preds == labels).sum().item()
+
+        return 100 * correct / total
+
+    #
+    def train(models, criterion, optimizers, schedulers, dataloaders, num_epochs, epoch_loss, vis, plot_data):
+        print('>> Train a Model.')
+        best_acc = 0.
+        checkpoint_dir = os.path.join('./cifar10', 'train', 'weights')
+        if not os.path.exists(checkpoint_dir):
+            os.makedirs(checkpoint_dir)
+
+        for epoch in range(num_epochs):
+            schedulers['backbone'].step()
+            schedulers['module'].step()
+
+            train_epoch(models, criterion, optimizers, dataloaders, epoch, epoch_loss, vis, plot_data)
+
+            # Save a checkpoint
+            if False and epoch % 5 == 4:
+                acc = test(models, dataloaders, 'test')
+                if best_acc < acc:
+                    best_acc = acc
+                    torch.save({
+                        'epoch': epoch + 1,
+                        'state_dict_backbone': models['backbone'].state_dict(),
+                        'state_dict_module': models['module'].state_dict()
+                    },
+                        '%s/active_resnet18_cifar10.pth' % (checkpoint_dir))
+                print('Val Acc: {:.3f} \t Best Acc: {:.3f}'.format(acc, best_acc))
+        print('>> Finished.')
+
+    #
+    def get_uncertainty(models, unlabeled_loader):
+        models['backbone'].eval()
+        models['module'].eval()
+        uncertainty = torch.tensor([]).cuda()
+
+        with torch.no_grad():
+            for (inputs, labels) in unlabeled_loader:
+                inputs = inputs.cuda()
+                # labels = labels.cuda()
+
+                scores, features = models['backbone'](inputs)
+                pred_loss = models['module'](features) # pred_loss = criterion(scores, labels) # ground truth loss
+                pred_loss = pred_loss.view(pred_loss.size(0))
+
+                uncertainty = torch.cat((uncertainty, pred_loss), 0)
+
+        return uncertainty.cpu()
 
 
-def save_dataset():
-    trainloader = torch.utils.data.DataLoader(
-        complete_train_dataset, batch_size=128, shuffle=False, num_workers=0)
+    ##
+    # Main
+    if __name__ == '__main__':
+        vis = visdom.Visdom(server='http://localhost', port=9000)
+        plot_data = {'X': [], 'Y': [], 'legend': ['Backbone Loss', 'Module Loss', 'Total Loss']}
 
-    trainset_data = None
-    trainset_label = None
-    for batch_idx, (inputs, targets) in enumerate(trainloader):
-        if trainset_data != None:
-            # print(input_list.shape, inputs.shape)
-            trainset_data = torch.cat((trainset_data, inputs), 0)
-            trainset_label = torch.cat((trainset_label, targets), 0)
-        else:
-            trainset_data = inputs
-            trainset_label = targets
+        for trial in range(TRIALS):
+            # Initialize a labeled dataset by randomly sampling K=ADDENDUM=1,000 data points from the entire dataset.
+            indices = list(range(NUM_TRAIN))
+            random.shuffle(indices)
+            labeled_set = indices[:ADDENDUM]
+            unlabeled_set = indices[ADDENDUM:]
 
-    testset_data = None
-    testset_label = None
-    for batch_idx, (inputs, targets) in enumerate(testloader):
-        if testset_data != None:
-            # print(input_list.shape, inputs.shape)
-            testset_data = torch.cat((testset_data, inputs), 0)
-            testset_label = torch.cat((testset_label, targets), 0)
-        else:
-            testset_data = inputs
-            testset_label = targets
+            train_loader = DataLoader(cifar10_train, batch_size=BATCH,
+                                      sampler=SubsetRandomSampler(labeled_set),
+                                      pin_memory=True)
+            test_loader  = DataLoader(cifar10_test, batch_size=BATCH)
+            dataloaders  = {'train': train_loader, 'test': test_loader}
 
-    save_dir = os.getcwd()
-    save_train_dir = os.path.join(save_dir, "Training_data")
-    save_test_dir = os.path.join(save_dir, "Testing_data")
-    if not os.path.exists(save_test_dir):
-        os.mkdir(save_test_dir)
-    if not os.path.exists(save_train_dir):
-        os.mkdir(save_train_dir)
+            # Model
+            resnet18    = resnet.ResNet18(num_classes=10).cuda()
+            loss_module = lossnet.LossNet().cuda()
+            models      = {'backbone': resnet18, 'module': loss_module}
+            torch.backends.cudnn.benchmark = False
 
-    torch.save(trainset_data, os.path.join(save_train_dir, "training_dataset_data.pth"))
-    torch.save(trainset_label, os.path.join(save_train_dir, "training_dataset_label.pth"))
-    torch.save(testset_data, os.path.join(save_test_dir, "testing_dataset_data.pth"))
-    torch.save(testset_label, os.path.join(save_test_dir, "testing_dataset_label.pth"))
+            # Active learning cycles
+            for cycle in range(CYCLES):
+                # Loss, criterion and scheduler (re)initialization
+                criterion      = nn.CrossEntropyLoss(reduction='none')
+                optim_backbone = optim.SGD(models['backbone'].parameters(), lr=LR,
+                                           momentum=MOMENTUM, weight_decay=WDECAY)
+                optim_module   = optim.SGD(models['module'].parameters(), lr=LR,
+                                           momentum=MOMENTUM, weight_decay=WDECAY)
+                sched_backbone = lr_scheduler.MultiStepLR(optim_backbone, milestones=MILESTONES)
+                sched_module   = lr_scheduler.MultiStepLR(optim_module, milestones=MILESTONES)
 
+                optimizers = {'backbone': optim_backbone, 'module': optim_module}
+                schedulers = {'backbone': sched_backbone, 'module': sched_module}
 
-accuracies, labeled_idx_per_cycle = run_training(
-    use_loss_prediction_al=args.use_loss_prediction_al,
-    use_discriminative_al=args.use_discriminative_al,
-    input_pickle_file=args.input_pickle_file,
-    cycles_count=10,
-    saving_period=10,
-)
+                # Training and test
+                train(models, criterion, optimizers, schedulers, dataloaders, EPOCH, EPOCHL, vis, plot_data)
+                acc = test(models, dataloaders, mode='test')
+                print('Trial {}/{} || Cycle {}/{} || Label set size {}: Test acc {}'.format(trial+1, TRIALS, cycle+1, CYCLES, len(labeled_set), acc))
 
+                ##
+                #  Update the labeled dataset via loss prediction-based uncertainty measurement
 
+                # Randomly sample 10000 unlabeled data points
+                random.shuffle(unlabeled_set)
+                subset = unlabeled_set[:SUBSET]
 
+                # Create unlabeled dataloader for the unlabeled subset
+                unlabeled_loader = DataLoader(cifar10_unlabeled, batch_size=BATCH,
+                                              sampler=SubsetSequentialSampler(subset), # more convenient if we maintain the order of subset
+                                              pin_memory=True)
+
+                # Measure uncertainty of each data points in the subset
+                uncertainty = get_uncertainty(models, unlabeled_loader)
+
+                # Index in ascending order
+                arg = np.argsort(uncertainty)
+
+                # Update the labeled dataset and the unlabeled dataset, respectively
+                labeled_set += list(torch.tensor(subset)[arg][-ADDENDUM:].numpy())
+                unlabeled_set = list(torch.tensor(subset)[arg][:-ADDENDUM].numpy()) + unlabeled_set[SUBSET:]
+
+                # Create a new dataloader for the updated labeled dataset
+                dataloaders['train'] = DataLoader(cifar10_train, batch_size=BATCH,
+                                                  sampler=SubsetRandomSampler(labeled_set),
+                                                  pin_memory=True)
+
+            # Save a checkpoint
+            torch.save({
+                'trial': trial + 1,
+                'state_dict_backbone': models['backbone'].state_dict(),
+                'state_dict_module': models['module'].state_dict()
+            },
+                './cifar10/train/weights/active_resnet18_cifar10_trial{}.pth'.format(trial))
