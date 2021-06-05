@@ -35,23 +35,26 @@ if __name__ == "__main__":
     # start experiment
     n_pool = args['train_num']  # 50000
     n_test = args['test_num']  # 10000
-    print('number of labeled pool: {}'.format(NUM_INIT_LB))
-    print('number of unlabeled pool: {}'.format(n_pool - NUM_INIT_LB))
-    print('number of testing pool: {}'.format(n_test))
-
-    # Generate the initial labeled pool
-    idxs_tot = np.arange(n_pool)
-    idxs_lb = np.random.choice(n_pool, NUM_INIT_LB, replace=False)
-    # np.random.permutation(idxs_tot)[:NUM_INIT_LB]
 
     # loading neural network
     task_model = ResNet18()
     task_model_type = "pytorch"
     if RESUME:
         resume_path = hyperparameters.resume_path
-        idxs_lb = json.load(os.path.join(resume_path, "index.json"))
+        idxs_lb = np.array(json.load(open(os.path.join(resume_path, "index.json"), "r")))
         state_dict = torch.load(os.path.join(resume_path, "subject_model.pth"))
         task_model.load_state_dict(state_dict)
+        NUM_INIT_LB = len(idxs_lb)
+    else:
+
+        # Generate the initial labeled pool
+        idxs_tot = np.arange(n_pool)
+        idxs_lb = np.random.choice(n_pool, NUM_INIT_LB, replace=False)
+        # np.random.permutation(idxs_tot)[:NUM_INIT_LB]
+
+    print('number of labeled pool: {}'.format(NUM_INIT_LB))
+    print('number of unlabeled pool: {}'.format(n_pool - NUM_INIT_LB))
+    print('number of testing pool: {}'.format(n_test))
 
     # here the training handlers and testing handlers are different
     train_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=True, transform=args['transform_tr'])

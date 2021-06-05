@@ -47,6 +47,7 @@ if __name__ == "__main__":
     task_model = ResNet18()
     task_model_type = "pytorch"
     if RESUME:
+        print('==> Resuming from checkpoint...')
         resume_path = hyperparameters.resume_path
         idxs_lb = json.load(os.path.join(resume_path, "index.json"))
         state_dict = torch.load(os.path.join(resume_path, "subject_model.pth"))
