@@ -91,3 +91,16 @@ def save_task_model(n_epoch, strategy):
     current_indices = strategy.lb_idxs.tolist()
     with open(os.path.join(working_path, "index.json"), "w") as f:
         json.dump(current_indices, f)
+
+
+def save_model(n_epoch, strategy, model, name):
+    # save subject model and index
+    working_path = os.path.join("..", "results", strategy.strategy_name, strategy.model_name, strategy.dataset_name, "Model")
+    if not os.path.exists(working_path):
+        os.mkdir(working_path)
+    working_path = os.path.join(working_path, "Epoch_{}".format(n_epoch))
+    if not os.path.exists(working_path):
+        os.mkdir(working_path)
+    model_path = os.path.join(working_path, name+".pth")
+    torch.save(model.state_dict(), model_path)
+

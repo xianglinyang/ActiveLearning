@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader, Subset
 
 from query_strategies.query_strategy import QueryMethod
 from query_strategies.query_strategy import get_unlabeled_idx
+from models.LL4ALnet import LossPredLoss
 
 
 class LL4ALSampling(QueryMethod):
@@ -16,10 +17,11 @@ class LL4ALSampling(QueryMethod):
         https://github.com/Mephisto405/Learning-Loss-for-Active-Learning
     """
 
-    def __init__(self, model, model_type, n_pool, init_lb, num_classes, dataset_name, model_name, gpu=True, **kwargs):
+    def __init__(self, model, model_type, n_pool, loss_pred_model, init_lb, num_classes, dataset_name, model_name, gpu=True, **kwargs):
 
         super(LL4ALSampling, self).__init__(model, model_type, n_pool)
         self.strategy_name = "LL4AL"
+        self.loss_pred_model = loss_pred_model
         self.dataset_name = dataset_name
         self.model_name = model_name
         self.num_classes = num_classes
@@ -27,12 +29,128 @@ class LL4ALSampling(QueryMethod):
         self.device = torch.device("cuda:0" if gpu else "cpu")
         self.kwargs = kwargs
 
-    def query(self, budget):
-        # TODO
-        pass
-        # return np.hstack((self.lb_idxs, new_indices))
+    def query(self, complete_dataset, budget):
+        self.loss_pred_model.to(self.device)
+        self.loss_pred_model.eval()
+        self.task_model.to(self.device)
+        self.task_model.eval()
+
+        unlabeled_idx = get_unlabeled_idx(self.n_pool, self.lb_idxs)
+
+        query_set = Subset(complete_dataset, unlabeled_idx)
+        query_loader = DataLoader(query_set, shuffle=False, **self.kwargs['loader_te_args'])
+
+        query_num = len(query_set)
+        batch_size = self.kwargs['loader_te_args']['batch_size']
+        pred = np.zeros((query_num), dtype=np.long)
+        with torch.no_grad():
+            for idx, (x, y) in enumerate(query_loader):
+                x, y = x.to(self.device), y.to(self.device)
+                out, features = self.task_model(x)
+                pred_loss = self.loss_pred_model(features)
+                pred_loss = pred_loss.view(pred_loss.size(0))
+                pred[idx*batch_size:(idx+1)*batch_size] = pred_loss.cpu().numpy()
+
+        selected_indices = np.argpartition(pred, budget)[:budget]
+
+        return np.hstack((self.lb_idxs, unlabeled_idx[selected_indices]))
 
     def update_lb_idxs(self, new_indices):
         self.lb_idxs = new_indices
 
-    # def train(self, total_epoch, complete_dataset):
+    def train(self, total_epoch, complete_dataset):
+
+        """
+        Only train samples from labeled dataset
+        :return:
+        """
+        print("[Training] labeled and unlabeled data")
+
+        self.task_model.to(self.device)
+        self.loss_pred_model.to(self.device)
+
+        # setting idx_lb
+        idx_lb_train = self.lb_idxs
+        train_dataset = Subset(complete_dataset, idx_lb_train)
+        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=1)
+        optimizer_task = optim.SGD(
+            self.task_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4
+        )
+        optimizer_losspred = optim.SGD(
+            self.loss_pred_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4
+        )
+        criterion = torch.nn.CrossEntropyLoss(reduction='none')
+
+        for epoch in range(total_epoch):
+            if epoch == total_epoch * 4 // 5:
+                optimizer = optim.SGD(
+                    self.task_model.parameters(), **self.kwargs['optimizer_args']
+                )
+
+            self.task_model.train()
+            self.loss_pred_model.train()
+
+            total_loss = 0
+            n_batch = 0
+            acc = 0
+
+            for inputs, targets in train_loader:
+                n_batch += 1
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
+
+                optimizer_task.zero_grad()
+                optimizer_losspred.zero_grad()
+
+                outputs, features = self.task_model(inputs)
+                target_loss = criterion(outputs, targets)
+
+                if epoch > 120:
+                    # After 120 epochs, stop the gradient from the loss prediction module propagated to the target model.
+                    features[0] = features[0].detach()
+                    features[1] = features[1].detach()
+                    features[2] = features[2].detach()
+                    features[3] = features[3].detach()
+                pred_loss = self.loss_pred_model(features)
+                pred_loss = pred_loss.view(pred_loss.size(0))
+
+                m_backbone_loss = torch.mean(loss)
+                m_module_loss = LossPredLoss(pred_loss, target_loss, margin=1.0)
+                loss = m_backbone_loss + 1.0 * m_module_loss
+
+                loss.backward()
+                optimizer_task.step()
+                optimizer_losspred.step()
+
+                total_loss += loss.item()
+                predicted = outputs.argmax(1)
+                b_acc = 1.0 * (targets == predicted).sum().item() / targets.shape[0]
+                acc += b_acc
+
+            total_loss /= n_batch
+            acc /= n_batch
+
+            if epoch % 50 == 0 or epoch == total_epoch-1:
+                print('==========Inner epoch {:d} ========'.format(epoch))
+                print('Training Loss {:.3f}'.format(total_loss))
+                print('Training accuracy {:.3f}'.format(acc*100))
+
+    def predict(self, testset):
+        loader_te = DataLoader(testset, shuffle=False, **self.kwargs['loader_te_args'])
+        self.task_model.to(self.device)
+        self.task_model.eval()
+
+        test_num = len(testset.targets)
+        batch_size = self.kwargs['loader_te_args']['batch_size']
+        pred = np.zeros(test_num, dtype=np.long)
+        with torch.no_grad():
+            for idx, (x, y) in enumerate(loader_te):
+                x, y = x.to(self.device), y.to(self.device)
+                out, _ = self.task_model(x)
+                p = out.argmax(1)
+                pred[idx*batch_size:(idx+1)*batch_size] = p.cpu().numpy()
+        return pred
+
+    def test_accu(self, testset):
+        pred = self.predict(testset)
+        label = np.array(testset.targets)
+        return np.sum(pred == label) / float(label.shape[0])
