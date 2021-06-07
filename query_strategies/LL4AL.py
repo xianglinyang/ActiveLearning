@@ -51,7 +51,7 @@ class LL4ALSampling(QueryMethod):
                 pred_loss = pred_loss.view(pred_loss.size(0))
                 pred[idx*batch_size:(idx+1)*batch_size] = pred_loss.cpu().numpy()
 
-        selected_indices = np.argpartition(pred, budget)[:budget]
+        selected_indices = np.argpartition(pred, query_num - budget)[-budget:]
 
         return np.hstack((self.lb_idxs, unlabeled_idx[selected_indices]))
 
@@ -82,9 +82,12 @@ class LL4ALSampling(QueryMethod):
         criterion = torch.nn.CrossEntropyLoss(reduction='none')
 
         for epoch in range(total_epoch):
-            if epoch == total_epoch * 4 // 5:
-                optimizer = optim.SGD(
+            if epoch == 160:
+                optimizer_task = optim.SGD(
                     self.task_model.parameters(), **self.kwargs['optimizer_args']
+                )
+                optimizer_losspred = optim.SGD(
+                    self.loss_pred_model.parameters(), **self.kwargs['optimizer_args']
                 )
 
             self.task_model.train()
@@ -113,7 +116,7 @@ class LL4ALSampling(QueryMethod):
                 pred_loss = self.loss_pred_model(features)
                 pred_loss = pred_loss.view(pred_loss.size(0))
 
-                m_backbone_loss = torch.mean(loss)
+                m_backbone_loss = torch.mean(target_loss)
                 m_module_loss = LossPredLoss(pred_loss, target_loss, margin=1.0)
                 loss = m_backbone_loss + 1.0 * m_module_loss
 
