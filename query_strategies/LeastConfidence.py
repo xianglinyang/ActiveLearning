@@ -45,7 +45,7 @@ class LeastConfidenceSampling(QueryMethod):
                 pred[idx*batch_size:(idx+1)*batch_size] = out.cpu().numpy()
 
         unlabeled_predictions = np.amax(pred, axis=1)
-        selected_indices = np.argpartition(unlabeled_predictions, query_num - budget)[-budget:]
+        selected_indices = np.argpartition(unlabeled_predictions, budget)[:budget]
         return np.hstack((self.lb_idxs, unlabeled_idx[selected_indices]))
 
     def update_lb_idxs(self, new_indices):
