@@ -1,5 +1,8 @@
 import gc
 import numpy as np
+'''
+https://github.com/google/active-learning/tree/efedd8f1c45421ee13af2b9ff593ad31f3835942
+'''
 
 # idxs or true/false list
 def get_unlabeled_idx(pool_num, lb_idx):
