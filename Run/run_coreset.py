@@ -5,14 +5,20 @@ from torchvision import transforms
 import time
 import os
 import json
+import sys
 
-from utils import save_datasets, save_task_model
+from utils import save_datasets, save_task_model, save_new_select
 from models.resnet import ResNet18
 from query_strategies.coreset import CoreSetSampling
 from arguments import get_arguments
 from args_pool import args_pool
 
 if __name__ == "__main__":
+    now = time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) 
+    file_path = os.path.join("..", "..", "..", "DVI_data", "active_learning", "coreset")
+    os.system("mkdir -p {}".format(file_path))
+    sys.stdout = open(os.path.join(file_path, now+".txt"), "w")
+
     hyperparameters = get_arguments()
 
     NUM_INIT_LB = hyperparameters.init_num    # 1000
@@ -23,14 +29,16 @@ if __name__ == "__main__":
     TOTAL_EPOCH = hyperparameters.epoch_num  # 200
     METHOD = hyperparameters.method
     RESUME = hyperparameters.resume
+    GPU = hyperparameters.gpu
 
     # for reproduce purpose
     torch.manual_seed(1331)
+    np.random.seed(1131)
 
     args = args_pool[DATA_NAME]
 
     if SAVE:
-        save_datasets(METHOD, "resnet18", DATA_NAME, **args)
+        save_datasets(METHOD, "resnet18", DATA_NAME, GPU, **args)
 
     # start experiment
     n_pool = args['train_num']  # 50000
@@ -60,7 +68,7 @@ if __name__ == "__main__":
     train_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=True, transform=args['transform_tr'])
     test_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=False, transform=args['transform_te'])
 
-    strategy = CoreSetSampling(task_model, task_model_type, n_pool, 512, idxs_lb, DATA_NAME, "resnet18", gpu=True, **args)
+    strategy = CoreSetSampling(task_model, task_model_type, n_pool, 512, idxs_lb, DATA_NAME, "resnet18", gpu=GPU, **args)
 
     # print information
     print(DATA_NAME)
@@ -68,7 +76,8 @@ if __name__ == "__main__":
 
     if not RESUME:
         # round 0
-        strategy.train(total_epoch=TOTAL_EPOCH, complete_dataset=train_dataset)
+        task_m = ResNet18()
+        strategy.train(total_epoch=TOTAL_EPOCH, task_model=task_m, complete_dataset=train_dataset)
     accu = strategy.test_accu(test_dataset)
     acc = np.zeros(NUM_ROUND+1)
     acc[0] = accu
@@ -88,13 +97,16 @@ if __name__ == "__main__":
         # query new samples
         t0 = time.time()
         new_indices = strategy.query(embedding, NUM_QUERY)
+        save_new_select(rd-1, strategy, new_indices)
         t1 = time.time()
         print("Query time is {:.2f}".format(t1-t0))
         q_time[rd-1] = t1-t0
 
         # update
+        new_indices = np.hstack((strategy.lb_idxs, new_indices))
         strategy.update_lb_idxs(new_indices)
-        strategy.train(total_epoch=TOTAL_EPOCH, complete_dataset=train_dataset)
+        resnet_model = ResNet18()
+        strategy.train(total_epoch=TOTAL_EPOCH, task_model=resnet_model, complete_dataset=train_dataset)
         t2 = time.time()
         print("Training time is {:.2f}".format(t2-t1))
         t_time[rd-1] = t2-t1

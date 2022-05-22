@@ -17,7 +17,7 @@ from arguments import get_arguments
 if __name__ == "__main__":
     # record output information
     now = time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) 
-    file_path = os.path.join("..", "..", "..", "DVI_data", "active_learning","random")
+    file_path = os.path.join("..", "..", "..", "DVI_data", "active_learning", "LestConfidence")
     os.system("mkdir -p {}".format(file_path))
     sys.stdout = open(os.path.join(file_path, now+".txt"), "w")
 
