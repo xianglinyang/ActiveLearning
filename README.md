@@ -1,8 +1,16 @@
 # ActiveLearning
 active learning SOTA query strategies
 ## Strategies
-- "LeastConfidence"
-- "coreset"
+- baseline
+  > - random
+- diversity based (density based)
+  > - coreset
+  > - coreset m
+- uncertainty based
+  > - least confidence
+  > - LL4Al
+- Bayesian based
+- hybrid
 ## Dependencies
 ```
 Keras==2.4.3
