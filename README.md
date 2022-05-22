@@ -9,7 +9,7 @@ active learning SOTA query strategies
 - uncertainty based
   > - "LeastConfidence", uncertainty sampling with minimal top confidence
   > - "LL4AL"
-  > - "Margin Sampling": Active Hidden Markov Models for Information Extraction, IDA, 2001
+  > - "Margin": minimal margin
   > - "entropy": uncertainty sampling with maximal entropy
   > - "adversarial": adversarial active learning using DeepFool
   > - "EGL": estimated gradient length
@@ -17,8 +17,11 @@ active learning SOTA query strategies
   > - "DiscriminativeAE": discriminative active learning with an autoencoder embedding as the representation
   > - "DiscriminativeLearned": discriminative active learning with the learned representation from the model as the representation
   > - "DiscriminativeStochastic": discriminative active learning with the learned representation as the representation and sampling proportionally to the confidence as being "unlabeled".
-  > - vaal
-  > - sraal
+  > - vaal (2019)
+  > - ta-vaal (2021, cvpr)
+  > - sraal (2020, cvpr oral)
+- influence based
+  > - ISAL: influence 
 - Bayesian based
   > - "Bayesian": Bayesian uncertainty sampling with minimal top confidence
   > - "BayesianEntropy": Bayesian uncertainty sampling with maximal entropy
