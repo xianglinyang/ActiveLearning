@@ -1,17 +1,26 @@
 import os
+import sys
 import numpy as np
 import torch
 import torchvision
 import time
 import json
 
-from utils import save_datasets, save_task_model
+active_learning_path = "/home/xianglin/projects/git_space/ActiveLearning"
+sys.path.append(active_learning_path)
+
+from utils import save_datasets, save_task_model, save_new_select
 from models.resnet import ResNet18
 from query_strategies.random import RandomSampling
 from args_pool import args_pool
 from arguments import get_arguments
 
 if __name__ == "__main__":
+    now = time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) 
+    file_path = os.path.join("..", "..", "..", "DVI_data", "active_learning","random")
+    os.system("mkdir -p {}".format(file_path))
+    sys.stdout = open(os.path.join(file_path, now+".txt"), "w")
+
     hyperparameters = get_arguments()
 
     NUM_INIT_LB = hyperparameters.init_num   # 1000
@@ -22,14 +31,16 @@ if __name__ == "__main__":
     TOTAL_EPOCH = hyperparameters.epoch_num  # 200
     METHOD = hyperparameters.method
     RESUME = hyperparameters.resume
+    GPU = hyperparameters.gpu
 
     # for reproduce purpose
     torch.manual_seed(1331)
+    np.random.seed(1131)
 
     args = args_pool[DATA_NAME]
 
     if SAVE:
-        save_datasets(METHOD, "resnet18", DATA_NAME, **args)
+        save_datasets(METHOD, "resnet18", DATA_NAME, GPU, **args)
 
     # start experiment
     n_pool = args['train_num']  # 50000
@@ -41,7 +52,8 @@ if __name__ == "__main__":
     if RESUME:
         print('==> Resuming from checkpoint...')
         resume_path = hyperparameters.resume_path
-        idxs_lb = json.load(os.path.join(resume_path, "index.json"))
+        f = open(os.path.join(resume_path, "index.json"), "r")
+        idxs_lb = np.array(json.load(f))
         state_dict = torch.load(os.path.join(resume_path, "subject_model.pth"))
         task_model.load_state_dict(state_dict)
         NUM_INIT_LB = len(idxs_lb)
@@ -59,7 +71,7 @@ if __name__ == "__main__":
     test_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=False, transform=args['transform_te'])
     complete_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=True, transform=args['transform_te'])
 
-    strategy = RandomSampling(task_model, task_model_type, n_pool, idxs_lb, 10, DATA_NAME, "resnet18", gpu=True, **args)
+    strategy = RandomSampling(task_model, task_model_type, n_pool, idxs_lb, 10, DATA_NAME, "resnet18", gpu=GPU, **args)
 
     # print information
     print(DATA_NAME)
@@ -67,7 +79,7 @@ if __name__ == "__main__":
 
     if not RESUME:
         # round 0
-        strategy.train(total_epoch=TOTAL_EPOCH, complete_dataset=train_dataset)
+        strategy.train(total_epoch=TOTAL_EPOCH, task_model=task_model, complete_dataset=train_dataset)
 
     accu = strategy.test_accu(test_dataset)
     acc = np.zeros(NUM_ROUND+1)
@@ -80,19 +92,21 @@ if __name__ == "__main__":
     t_time = np.zeros(NUM_ROUND)
 
     for rd in range(1, NUM_ROUND+1):
-
         print('================Round {:d}==============='.format(rd))
 
         # query new samples
         t0 = time.time()
         new_indices = strategy.query(NUM_QUERY)
+        save_new_select(rd-1, strategy, new_indices)
         t1 = time.time()
         print("Query time is {:.2f}".format(t1-t0))
         q_time[rd-1] = t1-t0
 
         # update
+        new_indices = np.hstack((strategy.lb_idxs, new_indices))
         strategy.update_lb_idxs(new_indices)
-        strategy.train(total_epoch=TOTAL_EPOCH, complete_dataset=train_dataset)
+        resnet_model = ResNet18()
+        strategy.train(total_epoch=TOTAL_EPOCH, task_model=resnet_model, complete_dataset=train_dataset)
         t2 = time.time()
         print("Training time is {:.2f}".format(t2-t1))
         t_time[rd-1] = t2-t1

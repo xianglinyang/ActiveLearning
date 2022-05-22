@@ -15,7 +15,7 @@ class RandomSampling(QueryMethod):
         https://github.com/dsgissin/DiscriminativeActiveLearning/blob/master/query_methods.py
     """
 
-    def __init__(self, model, model_type, n_pool, init_lb, num_classes, dataset_name, model_name, gpu=True, **kwargs):
+    def __init__(self, model, model_type, n_pool, init_lb, num_classes, dataset_name, model_name, gpu=None, **kwargs):
 
         super(RandomSampling, self).__init__(model, model_type, n_pool)
         self.strategy_name = "random"
@@ -23,19 +23,22 @@ class RandomSampling(QueryMethod):
         self.model_name = model_name
         self.num_classes = num_classes
         self.lb_idxs = init_lb
-        self.device = torch.device("cuda:0" if gpu else "cpu")
+        if gpu is None:
+            self.device = torch.device("cpu")
+        elif type(gpu) == str:
+            self.device = torch.device("cuda:{}".format(gpu))
         self.kwargs = kwargs
 
     def query(self, budget):
         unlabeled_idx = get_unlabeled_idx(self.n_pool, self.lb_idxs)
         new_indices = np.random.choice(unlabeled_idx, budget, replace=False)
-
-        return np.hstack((self.lb_idxs, new_indices))
+        # return np.hstack((self.lb_idxs, new_indices))
+        return new_indices
 
     def update_lb_idxs(self, new_indices):
         self.lb_idxs = new_indices
 
-    def train(self, total_epoch, complete_dataset):
+    def train(self, total_epoch, task_model, complete_dataset):
 
         """
         Only train samples from labeled dataset
@@ -43,24 +46,22 @@ class RandomSampling(QueryMethod):
         """
         print("[Training] labeled and unlabeled data")
 
-        self.task_model.to(self.device)
+        # self.task_model.to(self.device)
+        task_model.to(self.device)
         # setting idx_lb
         idx_lb_train = self.lb_idxs
         train_dataset = Subset(complete_dataset, idx_lb_train)
-        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=1)
+        train_loader = DataLoader(train_dataset, batch_size=self.kwargs['loader_tr_args']['batch_size'], shuffle=True, num_workers=self.kwargs['loader_tr_args']['num_workers'])
         optimizer = optim.SGD(
-            self.task_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4
+            task_model.parameters(), lr=self.kwargs['optimizer_args']['lr'], momentum=self.kwargs['optimizer_args']['momentum'], weight_decay=self.kwargs['optimizer_args']['weight_decay']
         )
         criterion = torch.nn.CrossEntropyLoss(reduction='none')
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_epoch)
 
+        # retrain at each iteration
         for epoch in range(total_epoch):
-            if epoch == total_epoch * 4 // 5:
-                optimizer = optim.SGD(
-                    self.task_model.parameters(), **self.kwargs['optimizer_args']
-                )
 
-            self.task_model.train()
-
+            task_model.train()
             total_loss = 0
             n_batch = 0
             acc = 0
@@ -70,7 +71,7 @@ class RandomSampling(QueryMethod):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
 
                 optimizer.zero_grad()
-                outputs = self.task_model(inputs)
+                outputs = task_model(inputs)
                 loss = criterion(outputs, targets)
                 loss = torch.mean(loss)
                 loss.backward()
@@ -88,6 +89,9 @@ class RandomSampling(QueryMethod):
                 print('==========Inner epoch {:d} ========'.format(epoch))
                 print('Training Loss {:.3f}'.format(total_loss))
                 print('Training accuracy {:.3f}'.format(acc*100))
+            scheduler.step()
+        del self.task_model
+        self.task_model = task_model
 
     def predict(self, testset):
         loader_te = DataLoader(testset, shuffle=False, **self.kwargs['loader_te_args'])
