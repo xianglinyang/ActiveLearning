@@ -17,12 +17,14 @@ active learning SOTA query strategies
   > - "DiscriminativeAE": discriminative active learning with an autoencoder embedding as the representation
   > - "DiscriminativeLearned": discriminative active learning with the learned representation from the model as the representation
   > - "DiscriminativeStochastic": discriminative active learning with the learned representation as the representation and sampling proportionally to the confidence as being "unlabeled".
-  > - "Uncertainty Sampling with Dropout Estimation": Deep Bayesian Active Learning with Image Data
+  > - vaal
+  > - sraal
 - Bayesian based
   > - "Bayesian": Bayesian uncertainty sampling with minimal top confidence
   > - "BayesianEntropy": Bayesian uncertainty sampling with maximal entropy
   > - Bayesian Active Learning Disagreement: Deep Bayesian Active Learning with Image Data
 - hybrid
+  > - waal
 
 
 ## Dependencies
