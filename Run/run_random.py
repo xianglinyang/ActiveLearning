@@ -16,11 +16,6 @@ from args_pool import args_pool
 from arguments import get_arguments
 
 if __name__ == "__main__":
-    now = time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) 
-    file_path = os.path.join("..", "..", "..", "DVI_data", "active_learning","random")
-    os.system("mkdir -p {}".format(file_path))
-    sys.stdout = open(os.path.join(file_path, now+".txt"), "w")
-
     hyperparameters = get_arguments()
 
     NUM_INIT_LB = hyperparameters.init_num   # 1000
@@ -32,6 +27,11 @@ if __name__ == "__main__":
     METHOD = hyperparameters.method
     RESUME = hyperparameters.resume
     GPU = hyperparameters.gpu
+
+    now = time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) 
+    file_path = os.path.join("..", "..", "..", "DVI_data", "active_learning","random", "resnet18", DATA_NAME)
+    os.system("mkdir -p {}".format(file_path))
+    sys.stdout = open(os.path.join(file_path, now+".txt"), "w")
 
     # for reproduce purpose
     torch.manual_seed(1331)
