@@ -50,6 +50,7 @@ class RandomSampling(QueryMethod):
         task_model.to(self.device)
         # setting idx_lb
         idx_lb_train = self.lb_idxs
+        # !Note, two methods here, subset or SubsetRandomSampler inside Dataloader
         train_dataset = Subset(complete_dataset, idx_lb_train)
         train_loader = DataLoader(train_dataset, batch_size=self.kwargs['loader_tr_args']['batch_size'], shuffle=True, num_workers=self.kwargs['loader_tr_args']['num_workers'])
         optimizer = optim.SGD(

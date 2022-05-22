@@ -15,5 +15,6 @@ args_pool = {
             'num_class': 10,
             'train_num': 50000,
             'test_num': 10000,
+            'milestone':[160],
         },
 }

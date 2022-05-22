@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import torch.nn
-import tqdm
 import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
 
@@ -17,7 +16,7 @@ class LL4ALSampling(QueryMethod):
         https://github.com/Mephisto405/Learning-Loss-for-Active-Learning
     """
 
-    def __init__(self, model, model_type, n_pool, loss_pred_model, init_lb, num_classes, dataset_name, model_name, gpu=True, **kwargs):
+    def __init__(self, model, model_type, n_pool, loss_pred_model, init_lb, num_classes, dataset_name, model_name, gpu=None, **kwargs):
 
         super(LL4ALSampling, self).__init__(model, model_type, n_pool)
         self.strategy_name = "LL4AL"
@@ -26,7 +25,10 @@ class LL4ALSampling(QueryMethod):
         self.model_name = model_name
         self.num_classes = num_classes
         self.lb_idxs = init_lb
-        self.device = torch.device("cuda:0" if gpu else "cpu")
+        if gpu is None:
+            self.device = torch.device("cpu")
+        elif type(gpu) == str:
+            self.device = torch.device("cuda:{}".format(gpu))
         self.kwargs = kwargs
 
     def query(self, complete_dataset, budget):
@@ -53,12 +55,13 @@ class LL4ALSampling(QueryMethod):
 
         selected_indices = np.argpartition(pred, query_num - budget)[-budget:]
 
-        return np.hstack((self.lb_idxs, unlabeled_idx[selected_indices]))
+        # return np.hstack((self.lb_idxs, unlabeled_idx[selected_indices]))
+        return unlabeled_idx[selected_indices]
 
     def update_lb_idxs(self, new_indices):
         self.lb_idxs = new_indices
 
-    def train(self, total_epoch, complete_dataset):
+    def train(self, total_epoch, task_model, loss_pred_model, complete_dataset):
 
         """
         Only train samples from labeled dataset
@@ -66,32 +69,30 @@ class LL4ALSampling(QueryMethod):
         """
         print("[Training] labeled and unlabeled data")
 
-        self.task_model.to(self.device)
-        self.loss_pred_model.to(self.device)
+        task_model.to(self.device)
+        loss_pred_model.to(self.device)
 
         # setting idx_lb
         idx_lb_train = self.lb_idxs
         train_dataset = Subset(complete_dataset, idx_lb_train)
-        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=1)
+        train_loader = DataLoader(train_dataset, batch_size=self.kwargs['loader_tr_args']['batch_size'], shuffle=True, num_workers=self.kwargs['loader_tr_args']['num_workers'])
         optimizer_task = optim.SGD(
-            self.task_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4
+            task_model.parameters(), lr=self.kwargs['optimizer_args']['lr'], momentum=self.kwargs['optimizer_args']['momentum'], weight_decay=self.kwargs['optimizer_args']['weight_decay']
         )
         optimizer_losspred = optim.SGD(
-            self.loss_pred_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4
+            loss_pred_model.parameters(), lr=self.kwargs['optimizer_args']['lr'], momentum=self.kwargs['optimizer_args']['momentum'], weight_decay=self.kwargs['optimizer_args']['weight_decay']
         )
         criterion = torch.nn.CrossEntropyLoss(reduction='none')
 
-        for epoch in range(total_epoch):
-            if epoch == 160:
-                optimizer_task = optim.SGD(
-                    self.task_model.parameters(), **self.kwargs['optimizer_args']
-                )
-                optimizer_losspred = optim.SGD(
-                    self.loss_pred_model.parameters(), **self.kwargs['optimizer_args']
-                )
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_task, T_max=total_epoch)
+        # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer_task, milestones=[160]) # official implementation
+        sched_module   = torch.optim.lr_scheduler.MultiStepLR(optimizer_losspred, milestones=self.kwargs['milestone'])
+    
 
-            self.task_model.train()
-            self.loss_pred_model.train()
+        for epoch in range(total_epoch):
+
+            task_model.train()
+            loss_pred_model.train()
 
             total_loss = 0
             n_batch = 0
@@ -136,6 +137,13 @@ class LL4ALSampling(QueryMethod):
                 print('==========Inner epoch {:d} ========'.format(epoch))
                 print('Training Loss {:.3f}'.format(total_loss))
                 print('Training accuracy {:.3f}'.format(acc*100))
+            scheduler.step()
+            sched_module.step()
+        del self.task_model
+        del self.loss_pred_model
+        self.task_model = task_model
+        self.loss_pred_model = loss_pred_model
+            
 
     def predict(self, testset):
         loader_te = DataLoader(testset, shuffle=False, **self.kwargs['loader_te_args'])
