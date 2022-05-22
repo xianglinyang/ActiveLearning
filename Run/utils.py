@@ -74,11 +74,9 @@ def save_datasets(strategy_n, model_n, dataset_n, gpu=None, **kwargs):
 def save_task_model(n_epoch, strategy):
     # save subject model and index
     working_path = os.path.join("..", "..", "..", "DVI_data", "active_learning", strategy.strategy_name, strategy.model_name, strategy.dataset_name, "Model")
-    if not os.path.exists(working_path):
-        os.mkdir(working_path)
+    os.system("mkdir -p {}".format(working_path))
     working_path = os.path.join(working_path, "Iteration_{}".format(n_epoch))
-    if not os.path.exists(working_path):
-        os.mkdir(working_path)
+    os.system("mkdir -p {}".format(working_path))
     task_model_path = os.path.join(working_path, "subject_model.pth")
     torch.save(strategy.task_model.state_dict(), task_model_path)
 
@@ -90,11 +88,9 @@ def save_task_model(n_epoch, strategy):
 def save_model(n_epoch, strategy, model, name):
     # save subject model and index
     working_path = os.path.join("..", "..", "..", "DVI_data", "active_learning", strategy.strategy_name, strategy.model_name, strategy.dataset_name, "Model")
-    if not os.path.exists(working_path):
-        os.mkdir(working_path)
+    os.system("mkdir -p {}".format(working_path))
     working_path = os.path.join(working_path, "Iteration_{}".format(n_epoch))
-    if not os.path.exists(working_path):
-        os.mkdir(working_path)
+    os.system("mkdir -p {}".format(working_path))
     model_path = os.path.join(working_path, name+".pth")
     torch.save(model.state_dict(), model_path)
 

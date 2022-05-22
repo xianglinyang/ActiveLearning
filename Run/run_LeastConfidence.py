@@ -8,6 +8,9 @@ import torch
 import torchvision
 from torchvision import transforms
 
+active_learning_path = "/home/xianglin/projects/git_space/ActiveLearning"
+sys.path.append(active_learning_path)
+
 from utils import save_datasets, save_task_model, save_new_select
 from models.resnet import ResNet18
 from query_strategies.LeastConfidence import LeastConfidenceSampling
