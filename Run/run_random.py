@@ -79,7 +79,8 @@ if __name__ == "__main__":
 
     if not RESUME:
         # round 0
-        strategy.train(total_epoch=TOTAL_EPOCH, task_model=task_model, complete_dataset=train_dataset)
+        task_m = ResNet18()
+        strategy.train(total_epoch=TOTAL_EPOCH, task_model=task_m, complete_dataset=train_dataset)
 
     accu = strategy.test_accu(test_dataset)
     acc = np.zeros(NUM_ROUND+1)
