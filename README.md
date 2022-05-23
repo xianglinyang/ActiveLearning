@@ -12,7 +12,6 @@ active learning SOTA query strategies
   > - "Margin": minimal margin
   > - "entropy": uncertainty sampling with maximal entropy
   > - "adversarial": adversarial active learning using DeepFool
-  > - "EGL": estimated gradient length
   > - "Discriminative": discriminative active learning with raw pixels as the representation
   > - "DiscriminativeAE": discriminative active learning with an autoencoder embedding as the representation
   > - "DiscriminativeLearned": discriminative active learning with the learned representation from the model as the representation
@@ -22,11 +21,13 @@ active learning SOTA query strategies
   > - sraal (2020, cvpr oral)
 - influence based
   > - ISAL: influence 
+  > - "EGL": estimated gradient length
 - Bayesian based
   > - "Bayesian": Bayesian uncertainty sampling with minimal top confidence
   > - "BayesianEntropy": Bayesian uncertainty sampling with maximal entropy
-  > - Bayesian Active Learning Disagreement: Deep Bayesian Active Learning with Image Data
+  > - "Bayesian Active Learning Disagreement": Deep Bayesian Active Learning with Image Data
 - hybrid
+  > two methods hybrid
   > - waal
 
 
