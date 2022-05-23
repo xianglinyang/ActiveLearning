@@ -1,28 +1,41 @@
 # ActiveLearning
 active learning SOTA query strategies
 ## Strategies
-- baseline
+- **baseline**
   > - "random"
-- diversity based (density based)
+- **diversity based** (density based)
   > - "coreset"
   > - "coresetMIP"
-- uncertainty based
+- **uncertainty based**
   > - "LeastConfidence", uncertainty sampling with minimal top confidence
-  > - "LL4AL"
-  > - "Margin Sampling": Active Hidden Markov Models for Information Extraction, IDA, 2001
   > - "entropy": uncertainty sampling with maximal entropy
-  > - "adversarial": adversarial active learning using DeepFool
-  > - "EGL": estimated gradient length
-  > - "Discriminative": discriminative active learning with raw pixels as the representation
-  > - "DiscriminativeAE": discriminative active learning with an autoencoder embedding as the representation
-  > - "DiscriminativeLearned": discriminative active learning with the learned representation from the model as the representation
-  > - "DiscriminativeStochastic": discriminative active learning with the learned representation as the representation and sampling proportionally to the confidence as being "unlabeled".
-  > - "Uncertainty Sampling with Dropout Estimation": Deep Bayesian Active Learning with Image Data
-- Bayesian based
-  > - "Bayesian": Bayesian uncertainty sampling with minimal top confidence
-  > - "BayesianEntropy": Bayesian uncertainty sampling with maximal entropy
-  > - Bayesian Active Learning Disagreement: Deep Bayesian Active Learning with Image Data
-- hybrid
+  > - "Margin": minimal margin, top1-top2
+  > - "DFAL": adversarial active learning using DeepFool
+  > - "ALFA-Mix": (CVPR 2022), close to DFAL, but work on latent space
+- **model based**
+  > - "LL4AL": (CVPR, 2019) Learning a loss_pred_net to predict uncertainty.
+  > - vaal (ICCV, 2019) [[code](https://github.com/sinhasam/vaal)]
+  > - sraal (CVPR oral, 2020) [[code](https://github.com/Beichen1996/SRAAL)]
+  > - ta-vaal (CVPR, 2021) [[code](https://github.com/cubeyoung/TA-VAAL)]
+  > – GCNAL: (CVPR 2021) A model-based approach that learns a graph convolutional network to measures the relation between labelled and unlabelled instances
+  >> shortcoming: these AL methods do not consider the diversity of the selected samples and are prone to selecting samples with repetitive patterns
+- **influence based**
+  > - "ISAL": (ICCV, 2021) Influence Selection for Active Learning [[code](https://github.com/dragonlzm/ISAL)]
+  > forgetting sample and data diet
+  > - (data diet): (nips, 2021) [[code](https://github.com/mansheej/data_diet)]
+  > - (forgetting samples): (ICLR, 2019) [[code](https://github.com/mtoneva/example_forgetting)]
+  > - "EGL": estimated gradient length, similar to data diet *GraN* method
+- **Bayesian based**
+  > - "Bayesian": Bayesian uncertainty sampling with minimal top confidence (least confidence with dropout)
+  > - "BayesianEntropy": Bayesian uncertainty sampling with maximal entropy (highest entropy with dropout)
+  > - "BALD": (ICML 2017)
+
+- **hybrid**: Hybrid AL methods exploit both diversity and uncertainty in their sample selection methodologies
+  > - two methods hybrid
+  > - waal: (AISATAS, 2020) [[code](https://github.com/cjshui/WAAL)]
+  > - BADGE: (ICLR 2020) A hybrid approach that queries the centroids obtained from the clustering of the gradient embeddings [[code](https://github.com/JordanAsh/badge)]
+  > – "CDAL": (ECCV, 2020) A hybrid approach that exploits the contextual information in the predicted probabilities to choose samples with varied contexts
+  
 
 
 ## Dependencies
