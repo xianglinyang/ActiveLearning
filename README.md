@@ -11,6 +11,7 @@ active learning SOTA query strategies
   > - "entropy": uncertainty sampling with maximal entropy
   > - "Margin": minimal margin, top1-top2
   > - "DFAL": adversarial active learning using DeepFool
+  > - "ALFA-Mix": (CVPR 2022), close to DFAL, but work on latent space
 - **model based**
   > - "LL4AL": (CVPR, 2019) Learning a loss_pred_net to predict uncertainty.
   > - vaal (ICCV, 2019) [[code](https://github.com/sinhasam/vaal)]
