@@ -34,6 +34,7 @@ active learning SOTA query strategies
   > - two methods hybrid
   > - waal: (AISATAS, 2020) [[code](https://github.com/cjshui/WAAL)]
   > - BADGE: (ICLR 2020) A hybrid approach that queries the centroids obtained from the clustering of the gradient embeddings [[code](https://github.com/JordanAsh/badge)]
+  > – "CDAL": (ECCV, 2020) A hybrid approach that exploits the contextual information in the predicted probabilities to choose samples with varied contexts
   
 
 
