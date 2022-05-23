@@ -38,17 +38,17 @@ class LL4ALSampling(QueryMethod):
         self.task_model.eval()
 
         unlabeled_idx = get_unlabeled_idx(self.n_pool, self.lb_idxs)
-
         query_set = Subset(complete_dataset, unlabeled_idx)
         query_loader = DataLoader(query_set, shuffle=False, **self.kwargs['loader_te_args'])
-
         query_num = len(query_set)
         batch_size = self.kwargs['loader_te_args']['batch_size']
+
+        # get uncertainty
         pred = np.zeros((query_num), dtype=np.long)
         with torch.no_grad():
             for idx, (x, y) in enumerate(query_loader):
                 x, y = x.to(self.device), y.to(self.device)
-                out, features = self.task_model(x)
+                _, features = self.task_model(x)
                 pred_loss = self.loss_pred_model(features)
                 pred_loss = pred_loss.view(pred_loss.size(0))
                 pred[idx*batch_size:(idx+1)*batch_size] = pred_loss.cpu().numpy()
@@ -61,7 +61,7 @@ class LL4ALSampling(QueryMethod):
     def update_lb_idxs(self, new_indices):
         self.lb_idxs = new_indices
 
-    def train(self, total_epoch, task_model, loss_pred_model, complete_dataset):
+    def train(self, total_epoch, complete_dataset):
 
         """
         Only train samples from labeled dataset
@@ -69,30 +69,30 @@ class LL4ALSampling(QueryMethod):
         """
         print("[Training] labeled and unlabeled data")
 
-        task_model.to(self.device)
-        loss_pred_model.to(self.device)
+        self.task_model.to(self.device)
+        self.loss_pred_model.to(self.device)
 
         # setting idx_lb
         idx_lb_train = self.lb_idxs
         train_dataset = Subset(complete_dataset, idx_lb_train)
         train_loader = DataLoader(train_dataset, batch_size=self.kwargs['loader_tr_args']['batch_size'], shuffle=True, num_workers=self.kwargs['loader_tr_args']['num_workers'])
         optimizer_task = optim.SGD(
-            task_model.parameters(), lr=self.kwargs['optimizer_args']['lr'], momentum=self.kwargs['optimizer_args']['momentum'], weight_decay=self.kwargs['optimizer_args']['weight_decay']
+            self.task_model.parameters(), lr=self.kwargs['optimizer_args']['lr'], momentum=self.kwargs['optimizer_args']['momentum'], weight_decay=self.kwargs['optimizer_args']['weight_decay']
         )
         optimizer_losspred = optim.SGD(
-            loss_pred_model.parameters(), lr=self.kwargs['optimizer_args']['lr'], momentum=self.kwargs['optimizer_args']['momentum'], weight_decay=self.kwargs['optimizer_args']['weight_decay']
+            self.loss_pred_model.parameters(), lr=self.kwargs['optimizer_args']['lr'], momentum=self.kwargs['optimizer_args']['momentum'], weight_decay=self.kwargs['optimizer_args']['weight_decay']
         )
         criterion = torch.nn.CrossEntropyLoss(reduction='none')
 
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_task, T_max=total_epoch)
-        # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer_task, milestones=[160]) # official implementation
+        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_task, T_max=total_epoch) # other baselines
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer_task, milestones=self.kwargs['milestone']) # official implementation
         sched_module   = torch.optim.lr_scheduler.MultiStepLR(optimizer_losspred, milestones=self.kwargs['milestone'])
     
 
         for epoch in range(total_epoch):
 
-            task_model.train()
-            loss_pred_model.train()
+            self.task_model.train()
+            self.loss_pred_model.train()
 
             total_loss = 0
             n_batch = 0
@@ -139,11 +139,6 @@ class LL4ALSampling(QueryMethod):
                 print('Training accuracy {:.3f}'.format(acc*100))
             scheduler.step()
             sched_module.step()
-        del self.task_model
-        del self.loss_pred_model
-        self.task_model = task_model
-        self.loss_pred_model = loss_pred_model
-            
 
     def predict(self, testset):
         loader_te = DataLoader(testset, shuffle=False, **self.kwargs['loader_te_args'])
@@ -165,3 +160,4 @@ class LL4ALSampling(QueryMethod):
         pred = self.predict(testset)
         label = np.array(testset.targets)
         return np.sum(pred == label) / float(label.shape[0])
+    

@@ -100,9 +100,7 @@ if __name__ == "__main__":
     print(type(strategy).__name__)
 
     if not RESUME:
-        # round 0
-        task_m = ResNet18()
-        strategy.train(total_epoch=TOTAL_EPOCH, task_model=task_m, complete_dataset=train_dataset)
+        strategy.train(total_epoch=TOTAL_EPOCH, complete_dataset=train_dataset)
 
     accu = strategy.test_accu(test_dataset)
     acc = np.zeros(NUM_ROUND+1)
@@ -128,9 +126,8 @@ if __name__ == "__main__":
         # update
         new_indices = np.hstack((strategy.lb_idxs, new_indices))
         strategy.update_lb_idxs(new_indices)
-        loss_pred_module = LossNet()
-        resnet_model = ResNet18()
-        strategy.train(total_epoch=TOTAL_EPOCH, task_model=resnet_model, loss_pred_model=loss_pred_module, complete_dataset=train_dataset)
+
+        strategy.train(total_epoch=TOTAL_EPOCH, complete_dataset=train_dataset)
         t2 = time.time()
         print("Training time is {:.2f}".format(t2-t1))
         t_time[rd-1] = t2-t1
