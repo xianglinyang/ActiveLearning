@@ -21,14 +21,20 @@ active learning SOTA query strategies
   > - ta-vaal (CVPR, 2021) [[code](https://github.com/cubeyoung/TA-VAAL)]
 - influence based
   > - "ISAL": (ICCV, 2021) Influence Selection for Active Learning [[code](https://github.com/dragonlzm/ISAL)]
-  > - "EGL": estimated gradient length
+  > forgetting sample and data diet
+  > - (data diet): (nips, 2021) [[code](https://github.com/mansheej/data_diet)]
+  > - (forgetting samples): (ICLR, 2019) [[code](https://github.com/mtoneva/example_forgetting)]
+  > - "EGL": estimated gradient length, similar to data diet *GraN* method
 - Bayesian based
   > - "Bayesian": Bayesian uncertainty sampling with minimal top confidence (least confidence with dropout)
   > - "BayesianEntropy": Bayesian uncertainty sampling with maximal entropy (highest entropy with dropout)
-  > - "Bayesian Active Learning Disagreement": Deep Bayesian Active Learning with Image Data
+  > - "BALD": (ICML 2017)
+
 - hybrid
   > two methods hybrid
-  > - waal
+  > - waal: (AISATAS, 2020) [[code](https://github.com/cjshui/WAAL)]
+  > - BADGE: (ICLR 2020) A hybrid approach that queries the centroids obtained from the clustering of the gradient embeddings
+  > – GCNAL: (CVPR 2021) A model-based approach that learns a graph convolutional network to measures the relation between labelled and unlabelled instances
 
 
 ## Dependencies
