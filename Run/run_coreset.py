@@ -70,6 +70,7 @@ if __name__ == "__main__":
     # here the training handlers and testing handlers are different
     train_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=True, transform=args['transform_tr'])
     test_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=False, transform=args['transform_te'])
+    complete_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=True, transform=args['transform_te'])
 
     strategy = CoreSetSampling(task_model, task_model_type, n_pool, 512, idxs_lb, DATA_NAME, "resnet18", gpu=GPU, **args)
 
@@ -95,7 +96,7 @@ if __name__ == "__main__":
 
         print('================Round {:d}==============='.format(rd))
 
-        embedding = strategy.get_embedding(train_dataset)
+        embedding = strategy.get_embedding(complete_dataset)
 
         # query new samples
         t0 = time.time()

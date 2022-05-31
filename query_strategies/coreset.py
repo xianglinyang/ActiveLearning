@@ -71,6 +71,7 @@ class CoreSetSampling(QueryMethod):
     def get_embedding(self, trainset):
         embedding_model = self.get_embedding_model()
         loader = DataLoader(trainset, shuffle=False, **self.kwargs['loader_te_args'])
+        embedding_model.to(self.device)
         embedding_model.eval()
 
         train_num = len(trainset.targets)
@@ -129,7 +130,7 @@ class CoreSetSampling(QueryMethod):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
 
                 optimizer.zero_grad()
-                outputs = self.task_model(inputs)
+                outputs = task_model(inputs)
                 loss = criterion(outputs, targets)
                 loss = torch.mean(loss)
                 loss.backward()
