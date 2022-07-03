@@ -11,7 +11,8 @@ active_learning_path = "/home/xianglin/projects/git_space/ActiveLearning"
 sys.path.append(active_learning_path)
 
 from utils import save_datasets, save_task_model, save_new_select
-from models.resnet import ResNet18
+# from models.resnet import ResNet18
+from model.resnet_ import resnet18
 from query_strategies.coreset import CoreSetSampling
 from arguments import get_arguments
 from args_pool import args_pool
@@ -25,7 +26,8 @@ if __name__ == "__main__":
     DATA_NAME = hyperparameters.dataset   # 'CIFAR10'
     SAVE = hyperparameters.save  # True
     TOTAL_EPOCH = hyperparameters.epoch_num  # 200
-    METHOD = hyperparameters.method
+    # METHOD = hyperparameters.method
+    METHOD = "coreset"
     RESUME = hyperparameters.resume
     GPU = hyperparameters.gpu
 
@@ -48,7 +50,7 @@ if __name__ == "__main__":
     n_test = args['test_num']  # 10000
 
     # loading neural network
-    task_model = ResNet18()
+    task_model = resnet18()
     task_model_type = "pytorch"
     if RESUME:
         resume_path = hyperparameters.resume_path
@@ -80,7 +82,7 @@ if __name__ == "__main__":
 
     if not RESUME:
         # round 0
-        task_m = ResNet18()
+        task_m = resnet18()
         strategy.train(total_epoch=TOTAL_EPOCH, task_model=task_m, complete_dataset=train_dataset)
     accu = strategy.test_accu(test_dataset)
     acc = np.zeros(NUM_ROUND+1)
@@ -100,7 +102,7 @@ if __name__ == "__main__":
 
         # query new samples
         t0 = time.time()
-        new_indices = strategy.query(embedding, NUM_QUERY)
+        new_indices, _ = strategy.query(embedding, NUM_QUERY)
         save_new_select(rd-1, strategy, new_indices)
         t1 = time.time()
         print("Query time is {:.2f}".format(t1-t0))
@@ -109,7 +111,7 @@ if __name__ == "__main__":
         # update
         new_indices = np.hstack((strategy.lb_idxs, new_indices))
         strategy.update_lb_idxs(new_indices)
-        resnet_model = ResNet18()
+        resnet_model = resnet18()
         strategy.train(total_epoch=TOTAL_EPOCH, task_model=resnet_model, complete_dataset=train_dataset)
         t2 = time.time()
         print("Training time is {:.2f}".format(t2-t1))

@@ -53,7 +53,8 @@ class LL4ALSampling(QueryMethod):
                 pred_loss = pred_loss.view(pred_loss.size(0))
                 pred[idx*batch_size:(idx+1)*batch_size] = pred_loss.cpu().numpy()
 
-        selected_indices = np.argpartition(pred, query_num - budget)[-budget:]
+        # selected_indices = np.argpartition(pred, query_num - budget)[-budget:]
+        selected_indices = np.argsort(pred)[-budget:]
 
         # return np.hstack((self.lb_idxs, unlabeled_idx[selected_indices]))
         return unlabeled_idx[selected_indices]

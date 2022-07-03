@@ -3,7 +3,7 @@ import argparse
 def get_arguments():
     parser = argparse.ArgumentParser(description="Get arguments for active learning.")
 
-    parser.add_argument('--method', '-m', type=str, default="random", choices=['random', 'LeastConfidence', 'coreset', "LL4AL"],
+    parser.add_argument('--method', '-m', type=str, choices=['random', 'LeastConfidence', 'coreset', "LL4AL"],
                         help="active learning query strategy")
     parser.add_argument('--init_num', type=int, default=1000, help="init label number")
     parser.add_argument('--query_num', type=int, default=1000, help="query budget for each cycle")

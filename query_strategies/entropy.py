@@ -47,10 +47,13 @@ class EntropySampling(QueryMethod):
                 out = self.task_model(x)
                 pred[idx*batch_size:(idx+1)*batch_size] = out.cpu().numpy()
         
-        entropys = np.sum(pred * np.log(pred + 1e-10), axis=1)
-        selected_indices = np.argpartition(entropys, budget)[:budget]
+        entropys = np.sum(pred * np.log(pred + 1e-8), axis=1)
+        # selected_indices = np.argpartition(entropys, budget)[-budget:]
+        # return indices based on ranking
+        selected_indices = np.argsort(entropys)[-budget:]
         # return np.hstack((self.lb_idxs, unlabeled_idx[selected_indices]))
-        return unlabeled_idx[selected_indices]
+        scores = entropys[selected_indices]
+        return unlabeled_idx[selected_indices], scores
 
     def update_lb_idxs(self, new_indices):
         self.lb_idxs = new_indices

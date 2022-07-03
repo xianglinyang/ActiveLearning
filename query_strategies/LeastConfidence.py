@@ -48,9 +48,11 @@ class LeastConfidenceSampling(QueryMethod):
                 pred[idx*batch_size:(idx+1)*batch_size] = out.cpu().numpy()
 
         unlabeled_predictions = np.amax(pred, axis=1)
-        selected_indices = np.argpartition(unlabeled_predictions, budget)[:budget]
+        # selected_indices = np.argpartition(unlabeled_predictions, budget)[:budget]
+        selected_indices = np.argsort(unlabeled_predictions)[:budget]
         # return np.hstack((self.lb_idxs, unlabeled_idx[selected_indices]))
-        return unlabeled_idx[selected_indices]
+        scores = unlabeled_predictions[selected_indices]
+        return unlabeled_idx[selected_indices], scores
 
     def update_lb_idxs(self, new_indices):
         self.lb_idxs = new_indices
@@ -105,8 +107,7 @@ class LeastConfidenceSampling(QueryMethod):
                 print('Training Loss {:.3f}'.format(total_loss))
                 print('Training accuracy {:.3f}'.format(acc*100))
             scheduler.step()
-        del self.task_model
-        self.task_model = task_model
+        self.task_model.load_state_dict(task_model.state_dict())
 
     def predict(self, testset):
         loader_te = DataLoader(testset, shuffle=False, **self.kwargs['loader_te_args'])

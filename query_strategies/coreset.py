@@ -93,7 +93,8 @@ class CoreSetSampling(QueryMethod):
         # use the learned representation for the k-greedy-center algorithm:
         new_indices = self.greedy_k_center(embedding[labeled_idx, :], embedding[unlabeled_idx, :], amount)
         # return np.hstack((labeled_idx, unlabeled_idx[new_indices]))
-        return unlabeled_idx[new_indices]
+        scores = np.ones_like(new_indices)
+        return unlabeled_idx[new_indices], scores
 
     def update_lb_idxs(self, new_indices):
         self.lb_idxs = new_indices
