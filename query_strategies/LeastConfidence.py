@@ -41,18 +41,25 @@ class LeastConfidenceSampling(QueryMethod):
         query_num = len(query_set)
         batch_size = self.kwargs['loader_te_args']['batch_size']
         pred = np.zeros((query_num, self.num_classes), dtype=np.long)
+        label = np.zeros((query_num), dtype=np.int32)
         with torch.no_grad():
             for idx, (x, y) in enumerate(query_loader):
                 x, y = x.to(self.device), y.to(self.device)
                 out = self.task_model(x)
                 pred[idx*batch_size:(idx+1)*batch_size] = out.cpu().numpy()
+                label[idx*batch_size:(idx+1)*batch_size] = y.cpu().numpy()
 
         unlabeled_predictions = np.amax(pred, axis=1)
         # selected_indices = np.argpartition(unlabeled_predictions, budget)[:budget]
         selected_indices = np.argsort(unlabeled_predictions)[:budget]
         # return np.hstack((self.lb_idxs, unlabeled_idx[selected_indices]))
         scores = unlabeled_predictions[selected_indices]
-        return unlabeled_idx[selected_indices], scores
+
+        preds = np.argmax(pred, axis=1).squeeze()
+        wrong_preds = (preds != label)
+
+        # return unlabeled_idx[selected_indices], scores
+        return unlabeled_idx[wrong_preds],scores
 
     def update_lb_idxs(self, new_indices):
         self.lb_idxs = new_indices

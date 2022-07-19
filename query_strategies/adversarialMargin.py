@@ -8,17 +8,17 @@ from query_strategies.query_strategy import QueryMethod
 from query_strategies.query_strategy import get_unlabeled_idx
 
 
-class bayesianLeastConfidenceSampling(QueryMethod):
+class AdversarialMarginSampling(QueryMethod):
     """
-   An implementation of the Bayesian active learning method, using minimal top confidence as the decision rule.
+    An implementation of adversarial active learning, using cleverhans' implementation of DeepFool to generate adversarial examples.
         adopt from discriminative active learning repo
         https://github.com/dsgissin/DiscriminativeActiveLearning/blob/master/query_methods.py
     """
 
     def __init__(self, model, model_type, n_pool, init_lb, num_classes, dataset_name, model_name, gpu=None, **kwargs):
 
-        super(bayesianLeastConfidenceSampling, self).__init__(model, model_type, n_pool)
-        self.strategy_name = "bayesianLeastConfidence"
+        super(AdversarialMarginSampling, self).__init__(model, model_type, n_pool)
+        self.strategy_name = "adversarialMargin"
         self.dataset_name = dataset_name
         self.model_name = model_name
         self.num_classes = num_classes
@@ -27,44 +27,13 @@ class bayesianLeastConfidenceSampling(QueryMethod):
             self.device = torch.device("cpu")
         elif type(gpu) == str:
             self.device = torch.device("cuda:{}".format(gpu))
-        self.T = 10
         self.kwargs = kwargs
-    
-    def dropout_predict(self, complete_dataset):
-        # Net needs to have dropout
+
+    def query(self, budget):
         unlabeled_idx = get_unlabeled_idx(self.n_pool, self.lb_idxs)
-
-        query_set = Subset(complete_dataset, unlabeled_idx)
-        query_loader = DataLoader(query_set, shuffle=False, **self.kwargs['loader_te_args'])
-        query_num = len(query_set)
-        batch_size = self.kwargs['loader_te_args']['batch_size']
-
-        self.task_model.to(self.device)
-        self.task_model.train()
-        probs = torch.zeros((self.T, query_num, self.num_classes))
-
-        for i in range(self.T):
-            with torch.no_grad():
-                for batch, (x, y)in enumerate(query_loader):
-                    x, y = x.to(self.device), y.to(self.device)
-                    out = self.task_model(x)
-                    prob = torch.nn.functional.softmax(out, dim=1)
-                    probs[i][batch*batch_size:(batch+1)*batch_size] = prob.cpu().detach().numpy()
-        
-        pbs = probs.mean(0)
-        uncertainty = probs.std(0)
-        return pbs, uncertainty
-
-    def query(self, complete_dataset, budget):
-        unlabeled_idx = get_unlabeled_idx(self.n_pool, self.lb_idxs)
-
-        pbs, _ = self.dropout_predict(complete_dataset=complete_dataset)
-
-        unlabeled_predictions = np.amax(pbs, axis=1)
-        # selected_indices = np.argpartition(unlabeled_predictions, budget)[:budget]
-        selected_indices = np.argsort(unlabeled_predictions)[:budget]
-        # return np.hstack((self.lb_idxs, unlabeled_idx[selected_indices]))
-        return unlabeled_idx[selected_indices]
+        new_indices = np.random.choice(unlabeled_idx, budget, replace=False)
+        # return np.hstack((self.lb_idxs, new_indices))
+        return new_indices
 
     def update_lb_idxs(self, new_indices):
         self.lb_idxs = new_indices
@@ -77,9 +46,11 @@ class bayesianLeastConfidenceSampling(QueryMethod):
         """
         print("[Training] labeled and unlabeled data")
 
+        # self.task_model.to(self.device)
         task_model.to(self.device)
         # setting idx_lb
         idx_lb_train = self.lb_idxs
+        # !Note, two methods here, subset or SubsetRandomSampler inside Dataloader
         train_dataset = Subset(complete_dataset, idx_lb_train)
         train_loader = DataLoader(train_dataset, batch_size=self.kwargs['loader_tr_args']['batch_size'], shuffle=True, num_workers=self.kwargs['loader_tr_args']['num_workers'])
         optimizer = optim.SGD(
@@ -88,9 +59,10 @@ class bayesianLeastConfidenceSampling(QueryMethod):
         criterion = torch.nn.CrossEntropyLoss(reduction='none')
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_epoch)
 
+        # retrain at each iteration
         for epoch in range(total_epoch):
-            task_model.train()
 
+            task_model.train()
             total_loss = 0
             n_batch = 0
             acc = 0

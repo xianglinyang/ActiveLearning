@@ -90,7 +90,7 @@ class BadgeSampling(QueryMethod):
 
         train_num = len(trainset.targets)
         batch_size = self.kwargs['loader_te_args']['batch_size']
-        embedding = np.zeros((train_num, self.embeding_shape))
+        embedding = np.zeros((train_num, self.embedding_shape))
         with torch.no_grad():
             for idx, (x, y) in enumerate(loader):
                 x, y = x.to(self.device), y.to(self.device)
@@ -102,7 +102,7 @@ class BadgeSampling(QueryMethod):
     # gradient embedding for badge (assumes cross-entropy loss)
     def get_grad_embedding(self, trainset):
         embedding = self.get_embedding(trainset=trainset)
-        loader = DataLoader(trainset, shuffle=False, **self.kwargs['loader_te_args'])\
+        loader = DataLoader(trainset, shuffle=False, **self.kwargs['loader_te_args'])
         
         self.task_model.to(self.device)
         self.task_model.eval()
@@ -126,9 +126,8 @@ class BadgeSampling(QueryMethod):
 
     def query(self, complete_dataset, budget):
         unlabeled_idx = get_unlabeled_idx(self.n_pool, self.lb_idxs)
-
-        query_set = Subset(complete_dataset, unlabeled_idx)
-        gradEmbedding = self.get_grad_embedding(query_set)
+        # query_set = Subset(complete_dataset, unlabeled_idx)
+        gradEmbedding = self.get_grad_embedding(complete_dataset)[unlabeled_idx]
         new_indices = init_centers(gradEmbedding, budget)
         scores = np.ones_like(new_indices)
         return unlabeled_idx[new_indices], scores

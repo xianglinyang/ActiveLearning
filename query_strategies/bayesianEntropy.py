@@ -61,7 +61,8 @@ class bayesianEntropySampling(QueryMethod):
         pbs, _ = self.dropout_predict(complete_dataset=complete_dataset)
 
         unlabeled_predictions = np.sum(pbs * np.log(pbs + 1e-10), axis=1)
-        selected_indices = np.argpartition(unlabeled_predictions, budget)[:budget]
+        # selected_indices = np.argpartition(unlabeled_predictions, budget)[-budget:]
+        selected_indices = np.argsort(unlabeled_predictions)[-budget:]
         # return np.hstack((self.lb_idxs, unlabeled_idx[selected_indices]))
         return unlabeled_idx[selected_indices]
 
