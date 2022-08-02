@@ -50,15 +50,15 @@ class RandomSampling(QueryMethod):
         seed = np.random.random_integers(1)
         torch.manual_seed(seed)
 
-        self.task_model.to(self.device)
-        # task_model.to(self.device)
+        # self.task_model.to(self.device)
+        task_model.to(self.device)
         # setting idx_lb
         idx_lb_train = self.lb_idxs
         # !Note, two methods here, subset or SubsetRandomSampler inside Dataloader
         train_dataset = Subset(complete_dataset, idx_lb_train)
         train_loader = DataLoader(train_dataset, batch_size=self.kwargs['loader_tr_args']['batch_size'], shuffle=True, num_workers=self.kwargs['loader_tr_args']['num_workers'])
         optimizer = optim.SGD(
-            self.task_model.parameters(), lr=self.kwargs['optimizer_args']['lr'], momentum=self.kwargs['optimizer_args']['momentum'], weight_decay=self.kwargs['optimizer_args']['weight_decay']
+            task_model.parameters(), lr=self.kwargs['optimizer_args']['lr'], momentum=self.kwargs['optimizer_args']['momentum'], weight_decay=self.kwargs['optimizer_args']['weight_decay']
         )
         criterion = torch.nn.CrossEntropyLoss(reduction='none')
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_epoch)
@@ -66,7 +66,7 @@ class RandomSampling(QueryMethod):
         # retrain at each iteration
         for epoch in range(total_epoch):
 
-            self.task_model.train()
+            task_model.train()
             total_loss = 0
             n_batch = 0
             acc = 0
@@ -76,7 +76,7 @@ class RandomSampling(QueryMethod):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
 
                 optimizer.zero_grad()
-                outputs = self.task_model(inputs)
+                outputs = task_model(inputs)
                 loss = criterion(outputs, targets)
                 loss = torch.mean(loss)
                 loss.backward()
@@ -95,8 +95,7 @@ class RandomSampling(QueryMethod):
                 print('Training Loss {:.3f}'.format(total_loss))
                 print('Training accuracy {:.3f}'.format(acc*100))
             scheduler.step()
-        # del self.task_model
-        # self.task_model = task_model
+        self.task_model.load_state_dict(task_model.state_dict())
 
     def predict(self, testset):
         loader_te = DataLoader(testset, shuffle=False, **self.kwargs['loader_te_args'])
