@@ -9,7 +9,7 @@ from query_strategies.query_strategy import QueryMethod
 from query_strategies.query_strategy import get_unlabeled_idx
 
 
-class LeastConfidenceSampling(QueryMethod):
+class FeedbackSampling(QueryMethod):
     """
     The basic uncertainty sampling query strategy, querying the examples with the minimal top confidence.
         adopt from discriminative active learning repo
@@ -18,8 +18,8 @@ class LeastConfidenceSampling(QueryMethod):
 
     def __init__(self, model, model_type, n_pool, init_lb, num_classes, dataset_name, model_name, gpu=None, **kwargs):
 
-        super(LeastConfidenceSampling, self).__init__(model, model_type, n_pool)
-        self.strategy_name = "LeastConfidence"
+        super(FeedbackSampling, self).__init__(model, model_type, n_pool)
+        self.strategy_name = "Feedback"
         self.dataset_name = dataset_name
         self.model_name = model_name
         self.num_classes = num_classes
@@ -42,22 +42,23 @@ class LeastConfidenceSampling(QueryMethod):
         query_num = len(query_set)
         batch_size = self.kwargs['loader_te_args']['batch_size']
         pred = np.zeros((query_num, self.num_classes))
-        # label = np.zeros((query_num), dtype=np.int32)
+        label = np.zeros((query_num))
         with torch.no_grad():
             for idx, (x, y) in enumerate(query_loader):
                 x, y = x.to(self.device), y.to(self.device)
                 out = self.task_model(x)
                 pred[idx*batch_size:(idx+1)*batch_size] = out.cpu().numpy()
-                # label[idx*batch_size:(idx+1)*batch_size] = y.cpu().numpy()
+                label[idx*batch_size:(idx+1)*batch_size] = y.cpu().numpy()
 
-        # unlabeled_predictions = np.amax(pred, axis=1)
-        # selected_indices = np.argpartition(unlabeled_predictions, budget)[:budget]
-        # selected_indices = np.argsort(unlabeled_predictions)[:budget]
-        # selected_indices = np.argsort(unlabeled_predictions)[-budget:]
         sm = softmax(pred, axis=1)
         unlabeled_predictions = np.amax(sm, axis=1)
-        selected_indices = np.argsort(unlabeled_predictions)[:budget]
-        return unlabeled_idx[selected_indices], unlabeled_predictions[selected_indices]
+        predictions = np.argmax(sm, axis=1)
+        pred_scores = np.zeros(len(pred))
+        pred_scores[np.where(predictions==label)] = 1.
+        scores = unlabeled_predictions+pred_scores
+        selected_indices = np.argsort(scores)[:budget]
+        return unlabeled_idx[selected_indices], scores[selected_indices]
+
 
     def update_lb_idxs(self, new_indices):
         self.lb_idxs = new_indices
