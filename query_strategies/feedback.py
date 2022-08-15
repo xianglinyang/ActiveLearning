@@ -53,18 +53,29 @@ class FeedbackSampling(QueryMethod):
 
         self.task_model.to(self.device)
         self.task_model.eval()
+        optimizer = optim.SGD(
+            self.task_model.parameters(), lr=self.kwargs['optimizer_args']['lr'], momentum=self.kwargs['optimizer_args']['momentum'], weight_decay=self.kwargs['optimizer_args']['weight_decay']
+        )
+        criterion = torch.nn.CrossEntropyLoss(reduction='none')
 
         query_num = len(query_set)
         batch_size = self.kwargs['loader_te_args']['batch_size']
         pred = np.zeros((query_num, self.num_classes))
         label = np.zeros((query_num))
-        with torch.no_grad():
-            for idx, (x, y) in enumerate(query_loader):
-                x, y = x.to(self.device), y.to(self.device)
-                out = self.task_model(x)
-                pred[idx*batch_size:(idx+1)*batch_size] = out.cpu().numpy()
-                label[idx*batch_size:(idx+1)*batch_size] = y.cpu().numpy()
-        
+        losses = np.zeros((query_num))
+
+        for idx, (x, y) in enumerate(query_loader):
+            x, y = x.to(self.device), y.to(self.device)
+            optimizer.zero_grad()
+            out = self.task_model(x)
+            loss = criterion(out, y)
+            loss.backward()
+            optimizer.step()
+
+            pred[idx*batch_size:(idx+1)*batch_size] = out.detech().cpu().numpy()
+            label[idx*batch_size:(idx+1)*batch_size] = y.detech().cpu().numpy()
+            losses[idx*batch_size:(idx+1)*batch_size] = loss.detech().cpu().numpy()
+
         # uncertainty score
         sm = softmax(pred, axis=1)
         unlabeled_predictions = np.amax(sm, axis=1)
@@ -81,12 +92,12 @@ class FeedbackSampling(QueryMethod):
         #     sim_scores[indices] = 1.
 
         # true wrong prediction scores
-        predictions = np.argmax(sm, axis=1)
-        pred_scores = np.zeros(len(pred))
-        pred_scores[np.where(predictions==label)] = 1.
+        # predictions = np.argmax(sm, axis=1)
+        # pred_scores = np.zeros(len(pred))
+        # pred_scores[np.where(predictions==label)] = 1.
 
-        scores = unlabeled_predictions+pred_scores
-        selected_indices = np.argsort(scores)[:budget]
+        scores = (1-unlabeled_predictions)*losses
+        selected_indices = np.argsort(scores)[-budget:]
         # selected_indices = np.random.choice(np.argwhere(pred_scores==1).squeeze(), size=budget, replace=False)
         return remain_idx[selected_indices], scores[selected_indices]
 
