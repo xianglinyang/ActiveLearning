@@ -4,9 +4,23 @@ import torch.nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
 from scipy.special import softmax
+from sklearn.neighbors import NearestNeighbors
+from pynndescent import NNDescent
 
 from query_strategies.query_strategy import QueryMethod
 from query_strategies.query_strategy import get_unlabeled_idx
+# from query_strategy import QueryMethod
+# from query_strategy import get_unlabeled_idx
+
+
+def find_closest_dists(queries, pool, k):
+    if len(queries)==0:
+        return np.array([])
+    # index = NNDescent(pool, metric="cosine")
+    # _, dists = index.query(queries, k=k)
+    nbrs = NearestNeighbors(n_neighbors=k, metric="cosine").fit(pool)
+    indices = nbrs.kneighbors(queries, return_distance=False)
+    return indices
 
 
 class FeedbackSampling(QueryMethod):
@@ -30,10 +44,11 @@ class FeedbackSampling(QueryMethod):
             self.device = torch.device("cuda:{}".format(gpu))
         self.kwargs = kwargs
 
-    def query(self, complete_dataset, budget):
+    def query(self, complete_dataset, budget, all_repr, selected_idxs):
         unlabeled_idx = get_unlabeled_idx(self.n_pool, self.lb_idxs)
+        remain_idx = np.setdiff1d(unlabeled_idx, selected_idxs)
 
-        query_set = Subset(complete_dataset, unlabeled_idx)
+        query_set = Subset(complete_dataset, remain_idx)
         query_loader = DataLoader(query_set, shuffle=False, **self.kwargs['loader_te_args'])
 
         self.task_model.to(self.device)
@@ -49,15 +64,31 @@ class FeedbackSampling(QueryMethod):
                 out = self.task_model(x)
                 pred[idx*batch_size:(idx+1)*batch_size] = out.cpu().numpy()
                 label[idx*batch_size:(idx+1)*batch_size] = y.cpu().numpy()
-
+        
+        # uncertainty score
         sm = softmax(pred, axis=1)
         unlabeled_predictions = np.amax(sm, axis=1)
+
+        # feedback score, based on the similarity score to the selected_idxs
+        # metric: euclidean distance
+        # check empty array
+        # sim_scores = np.zeros(len(unlabeled_predictions))
+        # if selected_idxs.shape[0] > 0:
+        #     selected_repr = all_repr[selected_idxs]
+        #     remain_repr = all_repr[remain_idx]
+        #     indices = find_closest_dists(selected_repr, remain_repr, 5)
+        #     indices = np.unique(indices).astype(np.int64)
+        #     sim_scores[indices] = 1.
+
+        # true wrong prediction scores
         predictions = np.argmax(sm, axis=1)
         pred_scores = np.zeros(len(pred))
         pred_scores[np.where(predictions==label)] = 1.
+
         scores = unlabeled_predictions+pred_scores
         selected_indices = np.argsort(scores)[:budget]
-        return unlabeled_idx[selected_indices], scores[selected_indices]
+        # selected_indices = np.random.choice(np.argwhere(pred_scores==1).squeeze(), size=budget, replace=False)
+        return remain_idx[selected_indices], scores[selected_indices]
 
 
     def update_lb_idxs(self, new_indices):
@@ -137,3 +168,8 @@ class FeedbackSampling(QueryMethod):
         return np.sum(pred == label) / float(label.shape[0])
 
 
+if __name__ =="__main__":
+    a=np.random.rand(200,10)
+    b=np.random.rand(100,10)
+    dists = find_closest_dists(a,b,k=1).squeeze(axis=1)
+    print(dists.shape)  # (200,)

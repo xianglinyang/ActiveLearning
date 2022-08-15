@@ -40,7 +40,7 @@ class EntropySampling(QueryMethod):
 
         query_num = len(query_set)
         batch_size = self.kwargs['loader_te_args']['batch_size']
-        pred = np.zeros((query_num, self.num_classes), dtype=np.long)
+        pred = np.zeros((query_num, self.num_classes))
         with torch.no_grad():
             for idx, (x, y) in enumerate(query_loader):
                 x, y = x.to(self.device), y.to(self.device)

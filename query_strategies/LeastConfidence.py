@@ -30,10 +30,11 @@ class LeastConfidenceSampling(QueryMethod):
             self.device = torch.device("cuda:{}".format(gpu))
         self.kwargs = kwargs
 
-    def query(self, complete_dataset, budget):
+    def query(self, complete_dataset, budget, selected_idxs=np.array([]).astype(np.int64)):
         unlabeled_idx = get_unlabeled_idx(self.n_pool, self.lb_idxs)
+        remain_idx = np.setdiff1d(unlabeled_idx, selected_idxs)
 
-        query_set = Subset(complete_dataset, unlabeled_idx)
+        query_set = Subset(complete_dataset, remain_idx)
         query_loader = DataLoader(query_set, shuffle=False, **self.kwargs['loader_te_args'])
 
         self.task_model.to(self.device)
