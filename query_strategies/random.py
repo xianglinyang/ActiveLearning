@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import torch
 import torch.nn
@@ -39,7 +40,7 @@ class RandomSampling(QueryMethod):
     def update_lb_idxs(self, new_indices):
         self.lb_idxs = new_indices
 
-    def train(self, total_epoch, task_model, complete_dataset):
+    def train(self, total_epoch, task_model, complete_dataset, save_path=None):
 
         """
         Only train samples from labeled dataset
@@ -95,6 +96,13 @@ class RandomSampling(QueryMethod):
                 print('Training Loss {:.3f}'.format(total_loss))
                 print('Training accuracy {:.3f}'.format(acc*100))
             scheduler.step()
+
+            if save_path is not None:
+                path = os.path.join(save_path, "Epoch_{}".format(epoch+1))
+                os.system("mkdir -p {}".format(path))
+                path = os.path.join(path, "subject_model.pth")
+                torch.save(task_model.state_dict(), path)
+                
         self.task_model.load_state_dict(task_model.state_dict())
 
     def predict(self, testset):
