@@ -99,7 +99,7 @@ class RandomSampling(QueryMethod):
 
             if save_path is not None:
                 path = os.path.join(save_path, "Epoch_{}".format(epoch+1))
-                os.system("mkdir -p {}".format(path))
+                os.makedirs(path, exist_ok=True)
                 path = os.path.join(path, "subject_model.pth")
                 torch.save(task_model.state_dict(), path)
                 
