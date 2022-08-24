@@ -30,10 +30,10 @@ def save_datasets(strategy_n, model_n, dataset_n, gpu=None, **kwargs):
     else:
         device = torch.device("cuda:{}".format(gpu))
     if dataset_n == "CIFAR10":
-        train_dataset = torchvision.datasets.CIFAR10(root='..//data//CIFAR10', download=True,
+        train_dataset = torchvision.datasets.CIFAR10(root='../data/CIFAR10', download=True,
                                                      transform=kwargs['transform_te'], train=True)
         train_dataloader = torch.utils.data.DataLoader(train_dataset, shuffle=False, batch_size=500)
-        test_dataset = torchvision.datasets.CIFAR10(root='..//data//CIFAR10', download=True,
+        test_dataset = torchvision.datasets.CIFAR10(root='../data/CIFAR10', download=True,
                                                     transform=kwargs['transform_te'], train=False)
         test_dataloader = torch.utils.data.DataLoader(test_dataset, shuffle=False, batch_size=500)
     elif dataset_n == "SVHN":
@@ -43,8 +43,13 @@ def save_datasets(strategy_n, model_n, dataset_n, gpu=None, **kwargs):
         # TODO
         pass
     elif dataset_n == "MNIST":
-        # TODO
-        pass
+        train_dataset = torchvision.datasets.MNIST("../data/mnist", train=True, download=True, transform=kwargs['transform_te'])
+        train_dataloader = torch.utils.data.DataLoader(train_dataset,shuffle=False, batch_size=500)
+        test_dataset = torchvision.datasets.MNIST("../data/mnist", train=False, download=True, transform=kwargs['transform_te'])
+        test_dataloader = torch.utils.data.DataLoader(test_dataset,shuffle=False, batch_size=500)
+    else:
+        raise NotImplementedError
+
     training_data = torch.Tensor().to(device)
     training_labels = torch.Tensor().to(device)
     for data, target in train_dataloader:

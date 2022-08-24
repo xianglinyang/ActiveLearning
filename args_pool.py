@@ -17,4 +17,20 @@ args_pool = {
             'test_num': 10000,
             'milestone':[160],
         },
+    "MNIST": {
+        "NET": "resnet18",
+        # "transform_tr": transforms.Compose([transforms.ToTensor(),
+        #                        transforms.Normalize(mean=[0.5,0.5,0.5],std=[0.5,0.5,0.5])]),
+        # "transform_te": transforms.Compose([transforms.ToTensor(),
+        #                        transforms.Normalize(mean=[0.5,0.5,0.5],std=[0.5,0.5,0.5])]),
+        "transform_tr": transforms.ToTensor(),
+        "transform_te":transforms.ToTensor(),
+        "loader_tr_args": {"batch_size": 128, "num_workers": 1},
+        "loader_te_args": {"batch_size": 1000, "num_workers": 1},
+        "optimizer_args": {"lr": 0.1, "momentum": 0.9, "weight_decay": 5e-4},
+        "num_class": 10,
+        "train_num": 60000,
+        "test_num": 10000,
+        "milestone":[10]
+    },
 }
