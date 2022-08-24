@@ -6,7 +6,7 @@ import torchvision
 import time
 import json
 
-active_learning_path = "/home/xianglin/projects/git_space/ActiveLearning"
+active_learning_path = "/home/xianglin/git_space/ActiveLearning"
 sys.path.append(active_learning_path)
 
 from utils import save_datasets, save_task_model, save_new_select
@@ -89,8 +89,10 @@ if __name__ == "__main__":
 
     if not RESUME:
         # round 0
+        save_path = os.path.join(file_path, "Model", "Iteration_0")
+        os.system("mkdir -p {}".format(save_path))
         task_m = resnet18()
-        strategy.train(total_epoch=TOTAL_EPOCH, task_model=task_m, complete_dataset=train_dataset)
+        strategy.train(total_epoch=TOTAL_EPOCH, task_model=task_m, complete_dataset=train_dataset,save_path=save_path)
 
     accu = strategy.test_accu(test_dataset)
     acc = np.zeros(NUM_ROUND+1)
@@ -103,6 +105,8 @@ if __name__ == "__main__":
     t_time = np.zeros(NUM_ROUND)
 
     for rd in range(1, NUM_ROUND+1):
+        save_path = os.path.join(file_path, "Model", "Iteration_{}".format(rd))
+        os.system("mkdir -p {}".format(save_path))
         print('================Round {:d}==============='.format(rd))
 
         # query new samples
@@ -117,7 +121,7 @@ if __name__ == "__main__":
         new_indices = np.hstack((strategy.lb_idxs, new_indices))
         strategy.update_lb_idxs(new_indices)
         resnet_model = resnet18()
-        strategy.train(total_epoch=TOTAL_EPOCH, task_model=resnet_model, complete_dataset=train_dataset)
+        strategy.train(total_epoch=TOTAL_EPOCH, task_model=resnet_model, complete_dataset=train_dataset, save_path=save_path)
         t2 = time.time()
         print("Training time is {:.2f}".format(t2-t1))
         t_time[rd-1] = t2-t1
