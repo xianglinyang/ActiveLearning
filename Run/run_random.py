@@ -10,8 +10,6 @@ active_learning_path = "/home/xianglin/projects/git_space/ActiveLearning"
 sys.path.append(active_learning_path)
 
 from utils import save_datasets, save_task_model, save_new_select
-# from models.resnet import ResNet18
-from models.resnet_ import resnet18
 from query_strategies.random import RandomSampling
 from args_pool import args_pool
 from arguments import get_arguments
@@ -34,6 +32,11 @@ if __name__ == "__main__":
     file_path = os.path.join("..", "..", "..", "DVI_data", "active_learning","random", "resnet18", DATA_NAME)
     os.system("mkdir -p {}".format(file_path))
     sys.stdout = open(os.path.join(file_path, now+".txt"), "w")
+
+    if DATA_NAME == "CIFAR10":
+        from models.resnet_ import resnet18
+    elif DATA_NAME == "MNIST":
+        from models.resnet_mnist import resnet18
 
     # for reproduce purpose
     torch.manual_seed(1331)
@@ -69,9 +72,14 @@ if __name__ == "__main__":
     print('number of testing pool: {}'.format(n_test))
 
     # here the training handlers and testing handlers are different
-    train_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=True, transform=args['transform_tr'])
-    test_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=False, transform=args['transform_te'])
-    complete_dataset = torchvision.datasets.CIFAR10(root="..//data//CIFAR10", download=True, train=True, transform=args['transform_te'])
+    if DATA_NAME == "CIFAR10":
+        train_dataset = torchvision.datasets.CIFAR10(root="../data/CIFAR10", download=True, train=True, transform=args['transform_tr'])
+        test_dataset = torchvision.datasets.CIFAR10(root="../data/CIFAR10", download=True, train=False, transform=args['transform_te'])
+        complete_dataset = torchvision.datasets.CIFAR10(root="../data/CIFAR10", download=True, train=True, transform=args['transform_te'])
+    elif DATA_NAME == "MNIST":
+        train_dataset = torchvision.datasets.MNIST("../data/mnist", train=True, download=True, transform=args['transform_tr'])
+        test_dataset = torchvision.datasets.MNIST("../data/mnist", train=False, download=True, transform=args['transform_te'])
+        train_dataset = torchvision.datasets.MNIST("../data/mnist", train=True, download=True, transform=args['transform_te'])
 
     strategy = RandomSampling(task_model, task_model_type, n_pool, idxs_lb, 10, DATA_NAME, "resnet18", gpu=GPU, **args)
 
