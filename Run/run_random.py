@@ -6,7 +6,7 @@ import torchvision
 import time
 import json
 
-active_learning_path = "/home/xianglin/git_space/ActiveLearning"
+active_learning_path = "/home/xianglin/projects/git_space/ActiveLearning"
 sys.path.append(active_learning_path)
 
 from utils import save_datasets, save_task_model, save_new_select
@@ -35,8 +35,10 @@ if __name__ == "__main__":
 
     if DATA_NAME == "CIFAR10":
         from models.resnet_ import resnet18
-    elif DATA_NAME == "MNIST":
+    elif DATA_NAME == "MNIST" or DATA_NAME == "FMNIST":
         from models.resnet_mnist import resnet18
+    else:
+        raise NotImplementedError
 
     # for reproduce purpose
     torch.manual_seed(1331)
@@ -80,6 +82,10 @@ if __name__ == "__main__":
         train_dataset = torchvision.datasets.MNIST("../data/mnist", train=True, download=True, transform=args['transform_tr'])
         test_dataset = torchvision.datasets.MNIST("../data/mnist", train=False, download=True, transform=args['transform_te'])
         train_dataset = torchvision.datasets.MNIST("../data/mnist", train=True, download=True, transform=args['transform_te'])
+    elif DATA_NAME == "FMNIST":
+        train_dataset = torchvision.datasets.FashionMNIST("../data/fmnist", train=True, download=True, transform=args['transform_tr'])
+        test_dataset = torchvision.datasets.FashionMNIST("../data/fmnist", train=False, download=True, transform=args['transform_te'])
+        train_dataset = torchvision.datasets.FashionMNIST("../data/fmnist", train=True, download=True, transform=args['transform_te'])
 
     strategy = RandomSampling(task_model, task_model_type, n_pool, idxs_lb, 10, DATA_NAME, "resnet18", gpu=GPU, **args)
 
